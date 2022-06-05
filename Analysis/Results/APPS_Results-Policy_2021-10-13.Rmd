@@ -1,0 +1,1707 @@
+---
+title: "Attitudes towards EGM Policy"
+subtitle: "Analysis Notes"
+author: "Dan Myles"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    toc: yes
+    toc_depth: 2
+    css: "../css/tufte_DM-hack.css"
+csl: "./References/apa.csl"
+bibliography: "./References/APPS.bib"
+---
+
+```{r md-setup, echo = FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.fullwidth=TRUE, fig.align = "center", fig.width = 10, cache = TRUE) 
+options(knitr.kable.NA = '')
+```
+
+```{r load-packages, cache = FALSE}
+# Functional
+library(here)
+library(datapasta)
+
+# The basics
+library(tidyverse)
+
+# For plotting
+library(cowplot)
+library(magick)
+library(rcartocolor)
+library(ggridges)
+
+# For tidying
+library(broom)
+library(janitor)
+
+# For nice tables
+library(knitr)
+library(huxtable)
+library(officer) # To output tables to word
+
+# For modelling
+library(tidymodels)
+library(tidybayes)
+library(tidybayes.rethinking)
+library(rethinking)
+library(brms)
+
+```
+
+```{r load-data, cache = FALSE}
+# Load data
+load(file = here("Analysis", "Data", "APPS_OSF-AnalysisData_2022-02-22.RData"))
+# Load question dictionary
+load(file = here("Analysis", "Data", "APPS_OSF-Questions_2022-02-22.RData"))
+
+# Load model output see APPS_CM-Probit_Policy_2021-10.R for processing
+models <- read_rds(file = here("Analysis", "Models", "Output", "CM-Probit", "Policy_CM-Probit_models.rds"))
+posterior <- read_rds(file = here("Analysis", "Models", "Output", "CM-Probit", "Policy_CM-Probit_posterior.rds"))
+posterior.sum <- read_rds(file = here("Analysis", "Models", "Output", "CM-Probit", "Policy_CM-Probit_posterior_summaries.rds"))
+```
+
+```{r set-gg-theme, cache = FALSE}
+# Create a new ggplot theme
+theme_fix <- function() {
+  theme_bw() %+replace%
+  theme(panel.background = element_rect(fill = "white", colour = NA),
+        text = element_text(size = 16),
+        axis.text = element_text(size = 12),
+        axis.text.x = element_text(size = 11),
+        axis.text.y = element_text(size = 11),
+        axis.title = element_text(size = 13),
+        plot.title = element_text(hjust = 0, margin = margin(b = 10)),
+        plot.subtitle = element_text(size = 13, hjust = 0, margin = margin(b = 10)),
+        plot.margin = margin(20, 10, 10, 10),
+        plot.caption = element_text(size = 10, hjust = 1, margin = margin(t = 10)),
+        legend.position = "top",
+        legend.background = element_rect(colour = "black", 
+                                         linetype = "solid",
+                                         size = 0.25),
+        legend.justification = 0,
+        legend.direction = "horizontal")
+}
+
+# Set this theme as base theme for the document.
+theme_set(theme_fix())
+
+# A colour scheme for plotting groups
+APPS_ColourScheme <- c("#a8a8a8", "#f0a800", "#6090d8", "#c7254e")
+```
+
+# A quick refresh?
+
+We presented participants with one of three news articles and a no-intervention control. The first article, described as the "Design" condition, described how electronic gambling machines (EGMs) have been designed to include a number of sleight of hand tactics that distort perceptions about when someone is winning or loosing. The second article, described here as the "Brain" conditions, provided a clinical and neuro-biological account of EGM related harm and addiction. The final article was based on industry press releases and lobbying documents, that advocated that current policy settings are more than enough and further government intervention in gambling sector is unnecessary and likely to be harmful to the economy.
+
+# Ordinal Regression
+
+In this document I summarise the results of our ordinal regression analyses, my primary reference for fitting these models is @burknerOrdinalRegressionModels2019.
+  
+The biggest advantage of this approaches is it does not make the implicit assumption that the distance between any response level was the same. Conversely, the use of an arithmetic mean, and so by extension a standard ANOVA/regression, assumes that the distance between Strongly Agree and Agree on the scale is the same as the distance between Slightly Agree and Slightly Disagree, that is $6-5 = 4-3$. But we don't actually know this, all we know is the ordering of response levels, i.e. Strongly Agree > Agree > Slightly Agree > Slightly Disagree > Disagree > Strongly Disagree. An ordinal regression attempts to estimate the distance between each response level directly, and infers an underlying continuous distribution for each group. The ordinal regression will also enable us to better comment on the point at which a certain response level or lower attained majority support. For example, we can say x% of the sample agreed vs. disagreed, and report a level of uncertainty around these estimates.
+
+# Where are the analysis scripts?
+
+The analysis script that fits the models and generates summaries etc. is the file `APPS_CM-Probit_Policy_2021-10.R`, in the `./Analysis/Models/` folder. That script takes a long time to run, so I have saved each model + output and load them in the code chunks below. The advantage of this approach is that I was able to iteratively fit all the models in a single script, which allowed me to run models overnight or during my lunch break. It also structures all the output into a single neat data frame which I find easier to manage from the command line. If you are unfamiliar with nested tibbles, or the package `purrr`, this process might seen arcane. If you are looking to get acquainted with this approach I'd suggest Jenny Bryan's tutorial on purrr: `https://jennybc.github.io/purrr-tutorial/`, as a starting point.
+
+# Attribution of Responsibility
+
+## Hypotheses
+
+The hypotheses I included in my mid candidature were as follows:
+
+1.  The Control and Clubs groups will attribute a greater degree of responsibility for gambling-related harm to the individual gambler.
+2.  The Design condition will attribute a greater degree of responsibility to industry and government.
+
+I have mapped my a priori expectation for the direction of an effect in the table below. Question marks indicate a completely exploratory prediction. For instance, we included an item about gambling venue employees, who have day-to-day interactions with individuals as they gamble and may therefore be well positioned to *intervene* in gambling harm, but may be perceived as having no role in *contributing* to it. I did not have a strong intuition about whether our interventions would impact this item, but it seemed worthy of investigation.
+
+That said, I should note that for the most part all hypotheses in this study were relatively exploratory. I wasn't testing a mature theory, more I was interested in whether concerns expressed in the literature would be born out in these data, given this design.
+
+**Question: To what extent do you agree or disagree that each of the following actors should be held responsible when negative or harmful consequences occur as a result of poker machine use?**
+
+  - `r levels(d$Resp_Aust)`
+
+```{r}
+# -----------------------------------
+# Clean up the questions a little
+# -----------------------------------
+questions$R_QN <- "To what extent do you agree or disagree that each of the following actors should be held responsible when negative or harmful consequences occur as a result of poker machine use?"
+
+questions$Resp_INDV <- "The individual should be held responsible"
+
+questions <- questions |> relocate(R_QN, .before = Resp_INDV)
+
+# A list of what I expected to find
+predictions <- c(
+  "+C -D -B",  # Question 1 
+  "--",        # Question 2
+  "+D -C +B?", # Question 3
+  "+D -C +B?", # Question 4
+  "-C +D?",# Question 5
+  "+D -C +B?", # Question 6
+  "-C"         # Question 7
+)
+
+predictions <- 
+  questions |> 
+    select(contains("Resp_")) |>
+    pivot_longer(cols = everything(), names_prefix = "Resp_", values_to = "Question") |>
+    mutate(Hypotheses = predictions, .before = name) |>
+    mutate(VarName = factor(name, 
+                            levels = c("INDV", "SNtwk", "Design", "Venues", "Empl", "Gvmt", "Aust"),
+                            labels = c("Individual", "Social Network", "Designers", "Venue Owners", "Venue Staff", "Government", "Aust Culture"))) |>
+    select(Hypotheses, VarName, Question)
+
+as_hux(predictions) |>
+  set_align("left") |>
+  set_bold(row = c(1), col = everywhere) |>
+  set_top_border(row = 1, col = everywhere) %>% # Need dot operator
+  set_bottom_border(row = c(1, nrow(.)), col = everywhere) |>
+  set_col_width(col = 1:3, value = c(.135, .15, .720)) |>
+  set_valign("bottom") |> 
+  set_all_padding(row = .75) |> 
+  set_width(value = 1.05)
+```
+
+## Data Distribution
+
+To begin here are the plots of the proportions in the raw data. I dropped the Family item so I could position the remaining 6 items in a grid.
+
+```{r fig.height=15, fig.width=20, messages=FALSE}
+# Summarise
+summary.resp.raw <- 
+d |>
+  pivot_longer(cols = contains("Resp_")) |>
+  group_by(Group, name, value) |>
+  filter(name != "Resp_SNtwk") |>
+  mutate(Item = factor(name, 
+                       levels = c("Resp_INDV", "Resp_Aust", "Resp_Empl", "Resp_Design", "Resp_Venues", "Resp_Gvmt"),
+                       labels = c("Individual", "Aus Culture", "Venue Staff", "Designers", "Venue Owners", "Government"))) |>
+  summarise(n = n()) |>
+  mutate(Percent = (n / sum(n))*100)
+
+# Plot
+  ggplot(data = summary.resp.raw) +
+  facet_wrap(~name, ncol = 3, dir = "v") +
+  geom_col(mapping = aes(x = value, y = Percent, fill = Group),
+           position = position_dodge()) +
+  labs(y = "Percent\n(Relative Frequency)",
+       x = NULL) +
+  scale_fill_manual(values = APPS_ColourScheme) +
+  coord_cartesian(ylim = c(0, 45)) +
+  scale_y_continuous(breaks = seq(from = 0, to = 45, by = 5)) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        text = element_text(size = 30),
+        legend.position = "top")
+```
+
+## Analysis
+
+### Cumulative (or Total) Agreement
+
+Cumulative agreement, that is the proportion of participants who selected either Strongly Agree, Agree or Slightly Agree, for all responsibility items is displayed in Table 2. This table displays the observed proportion in sample alongside the model 95% highest density posterior interval, and the model median (50%). In general, participants attributed greater responsibility to individuals, machine designers, government, and gambling venues, relative to social networks (i.e. friends and family), venue staff, and Australian society or culture in general.
+
+```{r}
+# Subset posterior summaries
+resp <- posterior.sum |> filter(str_detect(Item, pattern = "Resp_"))
+
+# Relabel Factors:
+levels <- resp$Item
+labels <- c("Individual",
+            "Social Network",
+            "Designers", 
+            "Venue Owners", 
+            "Venue Staff", 
+            "Government",
+            "Aus Culture")
+
+# Oberserved Cummulative proportions by Group and Item
+summary.resp.raw <- 
+  d |> 
+    select(Group, resp$Item) |> 
+    pivot_longer(contains("Resp_"), names_to = "Item", values_to = "Response") |> 
+    mutate(Response = fct_rev(Response)) |> 
+    mutate(Item = factor(Item, levels = levels, labels = labels)) |> 
+    count(Group, Item, Response) |> 
+    ungroup() |> 
+    group_by(Group, Item) |> 
+    mutate(observed_c_p = cumsum(n)/sum(n))
+
+# And same as above but from posterior summaries
+resp <- 
+  resp |> 
+    select(Item, c_p) |> 
+    unnest(c_p) |> 
+    mutate(Group = factor(Group, ordered = F)) |>
+    mutate(Item = factor(Item, levels = levels, labels = labels)) |> 
+    select(!c(.width, .point, .interval))
+
+# Join summary tables
+resp <- left_join(summary.resp.raw, resp)
+
+# Order tables by Item
+resp <- resp |> arrange(Item, Group)
+
+resp <- 
+  resp |> 
+    filter(str_detect(Response, "Slightly Agree")) |> 
+    relocate(Item) |> 
+    select(!c(Response, n))
+
+resp <- 
+  resp |> 
+    mutate(across(.cols = observed_c_p:.upper, .fns = ~sprintf("%.2f", .x))) |> 
+    relocate(c_p, .before = .upper) |> 
+    mutate("Estimate" = paste0("[", .lower, ", ", c_p, ", ", .upper, "]")) |> 
+    select(Item, Group, "Observed" = observed_c_p, Estimate)
+
+resp <- 
+  resp |> 
+    pivot_wider(names_from = Group, 
+                values_from = c("Observed", "Estimate"),
+                names_glue = "{Group}.{.value}") |> 
+    select(
+      Item, 
+      Control.Observed, Control.Estimate,
+      Brain.Observed, Brain.Estimate,
+      Design.Observed, Design.Estimate,
+      Clubs.Observed, Clubs.Estimate
+    )
+
+resp <- 
+  resp |>
+    as_hux() |> 
+    insert_row("", "Control", "", "Brain", "", "Design", "", "Clubs", "", after = 0) |> 
+    set_contents(2, 2:9, c("Observed", "Model Estimate", 
+                           "Observed", "Model Estimate", 
+                           "Observed", "Model Estimate", 
+                           "Observed", "Model Estimate")) |> 
+    merge_cells(1, 2:3) |> 
+    merge_cells(1, 4:5) |> 
+    merge_cells(1, 6:7) |> 
+    merge_cells(1, 8:9) |> 
+    set_align(1, everywhere, "center") |> 
+    set_align(col = 2:9, value = "center") |> 
+    set_top_border(row = 1, value = 1) |> 
+    set_bottom_border(row = 2, value = .5) |> 
+    set_bottom_border(row = 9, value = 1) |> 
+    set_col_width(col = c(3, 5, 7, 9), .15) |> 
+    set_col_width(col = 1, .2) |> 
+    set_width(1.1) |> 
+    set_position(value = "center") |> 
+    set_caption(value = "Observed Agreement and Model Estimates for Responsibility Items")
+
+# Save output as word docx
+# quick_docx(resp, file = here("Bayes/Output/CM-Probit/Tables/APPS_Responsibility-Agreement.docx"))
+
+# Print to html (when knitting)
+resp
+```
+
+#### **Individual Responsibility**
+
+We hypothesised that our Brain and Design interventions would reduce the attribution of responsibility to the individual, while the Clubs intervention would increase this attribution. These hypotheses were not supported by the data. Overall, total agreement with this item was slightly higher for each intervention, relative to the control condition. Cumulative agreement with this item is displayed in the plot below, along with model estimates.
+
+```{r fig.height= 10, fig.width=10, fig.cap="Cumulative Probability Plots for Individual Responsibility"}
+# Subset posterior summaries
+resp <- posterior.sum |> filter(str_detect(Item, pattern = "Resp_"))
+
+resp[1, 9][[1]][[1]] |> 
+  ggplot() +
+  # Draw a line a majority support
+  geom_hline(yintercept = .5, colour = "grey") +
+  scale_y_continuous(breaks = (0:10)/10, limits = c(0, 1)) +
+  # geom line was picky about lists >:(
+  scale_colour_manual(values = c(APPS_ColourScheme)) +
+  # Plot cumulative probability
+  geom_line(mapping = aes(colour = Group,
+                          group = Group,
+                          x = Response,
+                          y = c_p),
+            position = position_dodge(width = .2)) +
+  geom_errorbar(mapping = aes(group = Group,
+                              colour = Group,
+                              x = Response,
+                              ymin = .lower,
+                              ymax = .upper),
+                width = .1,
+                position = position_dodge(width = .2)) +
+  geom_point(mapping = aes(group = Group,
+                           colour = Group,
+                           x = Response,
+                           y = c_p),
+             size = 2.25,
+             position = position_dodge(width = .2)) +
+  geom_point(data = summary.resp.raw |> filter(Item == "Individual"),
+             mapping = aes(x = Response, y = observed_c_p, group = Group),
+             colour = "black",
+             size = 2.25,
+             position = position_dodge(width = .2),
+             shape = 1) +
+  labs(title = "Individual Responsibility",
+       subtitle = "Posterior Estimates of Cummulative Probabilities",
+       x = NULL,
+       colour = NULL,
+       y = "Cummulative Probability / Proportion",
+       caption = "
+       Error bars = 95% highest posterior density interval.
+       Coloured point estimate = median of posterior estimates.
+       Black = observed proportion in data.
+       ") 
+```
+
+Effect size estimates for the difference between the latent mean of each intervention condition, and the control condition were within +/- 0.1 of zero and all 95% HDPIs included positive and negative values.
+
+```{r}
+resp <- 
+  resp |> 
+    select(Item, ES) |> 
+    unnest(ES) |> 
+    mutate(Item = factor(Item, levels = levels, labels = labels)) |> 
+    select(!c(.width, .point, .interval)) |> 
+    mutate(across(where(is.double), ~sprintf("%.3f", .x)))
+
+resp |> 
+  filter(Item == "Individual") |> 
+  as_hux() |> 
+  set_top_border(row = 1, value = 1) |> 
+  set_bottom_border(row = 1, value = 0.5) |> 
+  set_bottom_border(row = 7, value = 1) |> 
+  set_caption(value = "Effect Size Estimates for Individual Responsibility Items ") |> 
+  set_position(value = "center")
+```
+
+#### **Design Group**
+
+```{r}
+resp |> 
+  filter(Contrast == "Control_Design") |> 
+  as_hux() |> 
+  set_top_border(row = 1, value = 1) |> 
+  set_bottom_border(row = 1, value = 0.5) |> 
+  set_bottom_border(row = 8, value = 1) |> 
+  set_caption(value = "Design vs. Control: Effect Size Estimates")
+```
+
+Relative to participants in the Control group, participants in the Design group responded with a higher level of agreement, on average, that machine designers, gambling venue owners and government, should be held responsible for EGM-related harm. There was also a higher level of mean agreement in the Design group relative to both the Clubs and Brain groups across each of these items.
+
+```{r}
+resp |> 
+  filter(str_detect(Contrast, "_Design") & Item %in% c("Designers", "Government", "Venue Owners")) |> 
+  filter(Contrast != "Control_Design") |> 
+  as_hux() |> 
+  set_top_border(row = 1, value = 1) |> 
+  set_bottom_border(row = 1, value = 0.5) |> 
+  set_bottom_border(row = 7, value = 1) |> 
+  set_caption(value = "Design vs. Other: Effect Size Estimates")
+```
+
+This attribution of responsibility to gambling industry and government did not appear to spill over to venue employees. Differences from the Control condition in this instance were centred at zero and while the CI could not exclude the possibility of a very small effect due to power constraints, this result was most consistent with a negligible or null effect.
+
+#### **Brain Group**
+
+```{r}
+resp |> 
+  filter(Contrast == "Control_Brain") |> 
+  as_hux() |> 
+  set_top_border(row = 1, value = 1) |> 
+  set_bottom_border(row = 1, value = 0.5) |> 
+  set_bottom_border(row = 8, value = 1) |> 
+  set_caption(value = "Brain vs. Control: Effect Size Estimates")
+```
+
+We were also interested in whether the Brain condition might change the attribution of responsibility to entities involved in the gambling sector. We observed a slight reduction in the attribution of responsibility toward venue staff, although the HDPI included zero and a range of negligibly small effects. There appeared to be no reliable effect of the Brain intervention on the remaining items relative to the Control group. The upper and lower bounds of the 95% HDPI for each of these estimates were within +/- 0.25 standard units of zero. These results are most consistent with a negligible or very small effect of this intervention on these items.
+
+#### **Clubs Group**
+
+```{r}
+resp |> 
+  filter(Contrast == "Control_Clubs") |> 
+  as_hux() |> 
+  set_top_border(row = 1, value = 1) |> 
+  set_bottom_border(row = 1, value = 0.5) |> 
+  set_bottom_border(row = 8, value = 1) |> 
+  set_caption(value = "Clubs vs. Control: Effect Size Estimates")
+```
+
+I hypothesised that the Clubs manipulation might reduce the attribution of responsibility for gambling harm to venue owners, machine designers, venue employees, government, and Australian culture in general. 
+
+We observed a reduction in the attribution of responsibility toward employees, relative to the control condition, though the upper bound of the HDPI still included negligibly small effects and zero. There was also a reduction in the attribution of responsibility to Australian culture or society in general, and to a lesser extent government and machine designers following the Clubs intervention. While the direction of each of these point estimates were consistent with our hypotheses, HDPIs around each of these estimates included zero and other negligibly small effect sizes. These results are consistent with predictions with the caveat that the magnitude of any effect was likely small, and perhaps so small as to be negligible. The observed difference for the gambling venues item was closer to zero, was more consistent with a null or negligible effect, although the HDPI still included a very small effect size of up to -.22.
+
+#### **Remaining Items**
+
+```{r}
+resp |> 
+  filter(Item %in% c("Social Network", "Aus Culture")) |> 
+  as_hux() |> 
+  set_top_border(row = 1, value = 1) |> 
+  set_bottom_border(row = c(1, 7), value = 0.5) |> 
+  set_bottom_border(row = 13, value = 1) |> 
+  set_caption(value = "Effect Size Estimates for Individual Responsibility Items ") |> 
+  set_position(value = "center")
+```
+
+Contrasts for the remaining items are displayed in the table below (sorted by effect size). I was less interested in these, but recorded here for posterity. Aside from the Clubs result for Australian culture reported above, the remaining results were most consistent with negligible to very small differences between groups.
+
+### Summary Conclusion
+
+Our Design intervention was associated with an increase in the attribution of responsibility for these harms being directed at government and industry. This increased endorsement of responsibility did not seem to spill over to bar staff or other venue employees, suggesting a targeted influence in any change in attitudes. I had hypothesised that this intervention would also decrease the attribution of individuals responsibility for gambling harm, as an endorsement of the increased responsibility of government and industry might soften views about personal accountability. The data were inconsistent with this hypothesis, consistent with a null to negligible effect or even a small effect in the opposite direction.
+
+I had also hypothesised that the Brain intervention would decrease the attribution of individual responsibility for gambling harm, because it drew attention to features of our biology that are beyond an individual's control. Again, the results were inconsistent with this hypothesis. 
+
+I also had a number of exploratory hypotheses regarding the group who read the industry press release advocating against further government intervention in the gambling sector. I had hypothesised that this intervention would reduce the attribution of responsibility towards venue staff, government, EGM designers and venue owners. Our point estimates were consistent with the direction of each these predictions, however HDPIs included zero and values of practical equivalence. The results for the Australian Culture/Society item were slightly more conclusive. We had also hypothesised that this intervention would result in an increased attribution of individual responsibility relative to the Control group. Again here, our results were inconclusive, consistent with either a null effect, or a very small effect in the predicted direction.
+
+```{r}
+# Clean-up
+rm(resp, predictions, i, summary.resp.raw, labels, levels)
+```
+
+# Policy Support
+
+## Broad Hypotheses
+
+1.  The industry group will report *less* support for all government interventions, relative to the Control condition.
+2.  The clinical condition will report greater support for publicly funded counselling programs, compared to the other conditions.
+3.  The machine design group will report greater support for interventions targeted at industry behaviour, machine design, and accessibility of gambling products.
+
+# The National Standard
+
+These statements are based directly on language on page 12 of the Australian/New Zealand Gaming Machine National Standard, which lists consumer protection guidelines for poker machine design. The idea here is to determine whether the community see EGMs as complying with these guidelines, and whether our interventions influence those beliefs in any way.
+
+In the paper I refer to this section as "Regulatory Language".
+
+## Hypotheses
+
+Specific hypotheses as before. I also expected to observe a larger effect for the Design group here, relative to the Brain group. It was unclear to me *a priori* whether the Brain group would perceive machines as being more unfair, relative to the Control, so that position was more exploratory. 
+
+```{r}
+predictions <- c(
+  "-D, -B?, +C", # Question 1 
+  "-D, +C",      # Question 2
+  "+D, +B?, -C"  # Question 3
+)
+
+questions |> 
+  select(starts_with("NS_")) |>
+  pivot_longer(cols = everything(), names_prefix = "NS_", values_to = "Question") |>
+  mutate(Hypotheses = predictions) |>
+  select(Hypotheses, Question) |>
+  kable()
+```
+
+## I Don't Know Responses
+
+This is the only item for which participants were able to respond with "I Don't Know". The reasoning here was that they may not have had any exposure to EGMs and may have felt they were unable to answer a questions which partly required someone to have an opinion about how the machines operate.
+
+It is also informative to check if our experimental groups responded with an increased confidence on this item (i.e. fewer IDK responses), most notably the Design group as this condition presented opinionated information about EGM design. So before we begin analysing these items we might want to determine whether there was a systematic tendency to respond with "I Don't Know" by group. The raw numbers suggest this may have been the case, particularly for the Brain and Design groups.
+
+```{r}
+d |> 
+  select(numericID, Group, NS_Fair, NS_Display, NS_Title) |>
+  group_by(Group) |>
+  summarise(n = n(),
+            NS_Fair = sum(NS_Fair == "I Don't Know"),
+            NS_Display = sum(NS_Display == "I Don't Know"),
+            NS_Title = sum(NS_Title == "I Don't Know")) |>
+  mutate(across(contains("NS_"), ~paste0(.x, " (", round((.x / n) * 100, 1), "%)"))) |>
+  kable(caption = "Number of I Don't Know Responses")
+```
+
+To determine whether experimental group predicted responding on these items I ran three Bayesian logistic regression models, with index coded variables for each of the experimental groups. This provides the benefit of being able to set the same prior across conditions. I'll set a normal(0, 1.5) prior on all intercepts. This involves considering how the parameter will behave on the probability scale, after the logistic transform. Doing this is fairly straightforward in this instance as we can use the logistic pdf for the prior like so:
+
+```{r}
+plot <- rlogis(n = 1e6)
+plot <- plogis(plot)
+
+ggplot() +
+  geom_density(mapping = aes(x = plot),
+               adjust = .1)
+```
+
+```{r, results='hide', message=FALSE}
+# Prepare the data
+IDK <- 
+  d |> 
+    select(numericID, Group, NS_Fair, NS_Display, NS_Title) |> 
+    mutate(across(c("NS_Fair", "NS_Display", "NS_Title"), 
+                  ~as.integer(.x == "I Don't Know"))) |> 
+    mutate(G = as.integer(Group)) |> 
+    pivot_longer(cols = NS_Fair:NS_Title,
+                 names_to = "Item", 
+                 values_to = "Response") |> 
+    mutate(Item = str_remove(Item, "NS_"),
+           Item = str_replace(Item, pattern = "Title", replacement = "Mislead"),
+           Item = factor(Item)) |> 
+    group_by(Item) |> 
+    nest(data = c(numericID, Group, G, Response))
+
+model_flist <- alist(
+  Response ~ dbinom(size = 1, prob = p),
+  logit(p) <- alpha[G],
+  # ulam doesn't have inbuilt support for the logistic pdf
+  # So we need to take it directly from stan 
+  alpha[G] ~ custom(logistic_lpdf(alpha[G]|0, 1))
+)
+
+IDK <- 
+  IDK |> 
+    mutate(
+      model = purrr::map(
+        .x = data,
+        .f = ~ulam(flist = model_flist, data = .x, chains = 4, cores = 4, 
+                  iter = 3500, warmup = 1000)
+      )
+    )
+```
+
+```{r}
+# Checked traceplots w/ 
+# traceplot(IDK$model[[1]])
+# Output not printed, but everything looks OK
+
+# Feb 2022 while re-producing these scripts prior to uploading them to OSF I stumbled into an annoying
+# bug with cmdstan + tidybayes::spread_draws()
+# See: https://github.com/mjskay/tidybayes/issues/132
+
+# As a work around I'm just drawing the whole posterior and then using pivot_longer.
+
+# Posterior Draws
+IDK <- 
+  IDK |> 
+    mutate(
+      posterior = purrr::map(
+        .x = model,
+        .f = function(.x) {
+          .x |> 
+            tidy_draws() |> 
+            select(.draw, alpha.1:alpha.4) |> 
+            pivot_longer(cols = alpha.1:alpha.4, names_to = "G", names_prefix = "alpha.", values_to = "alpha")
+        }
+      )
+    )
+
+# To refactor the index var w/ group names
+labels <- c("Control", "Brain", "Design", "Clubs")
+
+# Add grouping factor variable, and transform to probability scale
+IDK <- 
+  IDK |> 
+    mutate(
+      posterior = purrr::map(
+        .x = posterior,
+        .f = function(x) {
+          x |> 
+            mutate(Group = factor(G, levels = 1:4, labels = labels)) |>
+            mutate(p = plogis(alpha)) |> 
+            mutate(Odds = exp(alpha))
+        }
+      )
+    )
+
+# Summarise absolute probability
+IDK <- 
+  IDK |> 
+    mutate(
+      summary.p = purrr::map(
+        .x = posterior,
+        .f = function(x) {
+          x |> 
+            group_by(Group) |>
+            mean_hdi(p)
+        }
+      )
+    )
+
+# Summarise absolute Odds Ratios
+IDK <- 
+  IDK |> 
+  mutate(
+    summary.OR = purrr::map(
+      .x = posterior,
+      .f = function(x) {
+        x |> 
+          ungroup() |> 
+          select(.draw, Group, Odds) |> 
+          pivot_wider(names_from = Group, values_from = Odds) |> 
+          mutate(across(Control:Clubs, ~(.x / Control))) |> 
+          pivot_longer(Control:Clubs, names_to = "Group", values_to = "OR") |> 
+          mutate(Group = factor(Group, levels = labels)) |> 
+          group_by(Group) |> 
+          mean_hdi(OR)
+      }
+    )
+  )
+
+IDK.summary <- 
+  IDK |> 
+    select(Item, summary.p, summary.OR) |> 
+    unnest_wider(summary.p) |> 
+    select(Item, p, p.lower = .lower, p.upper = .upper, summary.OR) |> 
+    unnest_wider(summary.OR) |>
+    select(Item, Group, p, p.lower, p.upper, OR, OR.lower = .lower, OR.upper = .upper) |> 
+    unnest(everything())
+
+IDK.summary |> 
+  mutate(across(where(is.double), ~sprintf("%.3f", .x))) |> 
+  as_hux() |> 
+  set_top_border(row = 1, value = 1) |> 
+  set_bottom_border(row = 1, value = 0.5) |> 
+  set_bottom_border(row = 13, value = 0.5)
+```
+
+
+The table above contains the output for this analysis. The `p`, `p.lower` and `p.higher` columns contain the estimated probability of a response by group and item (i.e. the probability a participant selected "I Don't Know"), along with 95% HDPIs. The OR columns contain the odds ratio for responding relative to the Control condition for each item.
+
+This analysis suggested that individuals in the Design and Brain groups were less likely to respond "I Don't Know" to whether they thought that "Poker machines are fair", relative to the Control condition. Participants in the Design group were also less likely to respond "I Don't Know" to whether or not EGMs accurately displayed outcomes, relative to the Control condition, whereas the odds of responding following reading the Brain group intervention were closer to even on this item and the 95% HDPI included values either side of 1. 
+
+The relative odds of "I Don't Know" responses to the item "Poker machines are likely to mislead or deceive consumers" were approximately 1:2 relative to the Control for both the Brain and Design group, although the upper bound of the HDPI included values close to one in each case.
+
+The Clubs condition did not differ substantially from the Control condition in their tendency to express an opinion on any item. The odds were close to even for the Fair and Display item, whereas the odds of an "I Don't Know" response to the item: "Poker machines are likely to mislead or deceive consumers" were slightly higher relative to the Control condition, though the HDPI the included values either side of 1.
+
+These results provide some tentative evidence that our Design and Brain intervention encouraged participants who might otherwise felt unable to provide a response, to respond on these items.
+
+## Analysis of Responses to National Standard Items
+
+### Data Distribution
+
+```{r message=FALSE, fig.fullwidth=TRUE, fig.align = "center", fig.width = 10, fig.height=4}
+vars <- c("NS_Display",
+          "NS_Fair",
+          "NS_Title")
+
+for (i in vars) {
+  
+  # Summarise
+  d |> 
+    select(Group, Response = i) |> 
+    filter(Response != "I Don't Know")  |> 
+    count(Group, Response) |> 
+    group_by(Group) |> 
+    mutate(Percent = (n / sum(n))*100) |> 
+
+    # Pipe to Plot   
+    ggplot(mapping = aes(y = Percent, fill = Group, x = Response)) +
+    scale_fill_manual(values = APPS_ColourScheme) +
+    labs(title = str_wrap(questions |> pull(eval(parse(text = i))), width = 100),
+         colour = NULL,
+         x = NULL,
+         y = "Percent\n(Relative Frequency)") +
+    geom_col(position = position_dodge()) +
+    scale_y_continuous(breaks = seq(from = 0, to = 50, by = 5)) -> i
+  
+  print(i)
+}
+```
+
+## Analysis
+
+### Cummulative Agreement
+
+```{r NS-Agree_Table}
+# Subset posterior summaries
+NS <- posterior.sum[1:3, ]
+
+# Factors:
+labels <- NS$Item
+levels <- c("NS_Fair", "NS_Display", "NS_Title")
+
+# Observed Cumulative proportions by Group and Item
+summary.NS.raw <- 
+  d |> 
+  select(Group, contains("NS_")) |>
+  pivot_longer(contains("NS_"), names_to = "Item", values_to = "Response") |> 
+  mutate(Response = fct_rev(Response)) |> 
+  # Here I drop I Don't Know Responses, as these are analysed separately.
+  mutate(Response = factor(Response, exclude = "I Don't Know")) |> 
+  filter(!is.na(Response)) |> 
+  mutate(Item = factor(Item, levels = c("NS_Fair", "NS_Display", "NS_Title"), labels = labels)) |> 
+  count(Group, Item, Response) |> 
+  ungroup() |> 
+  group_by(Group, Item) |> 
+  mutate(observed_c_p = cumsum(n)/sum(n))
+
+# And same as above but from posterior summaries
+NS <- 
+  NS |> 
+  select(Item, c_p) |> 
+  unnest(c_p) |> 
+  mutate(Group = factor(Group, ordered = F)) |>
+  mutate(Item = factor(Item, levels = labels)) |> 
+  select(!c(.width, .point, .interval))
+
+# Join summary tables
+NS <- left_join(summary.NS.raw, NS)
+
+# Order tables by Item and Group
+NS <- NS |> arrange(Item, Group)
+
+NS <- 
+  NS |> 
+  filter(str_detect(Response, "Slightly Agree")) |> 
+  relocate(Item) |> 
+  select(!c(Response, n))
+
+NS <- 
+  NS |> 
+  mutate(across(.cols = observed_c_p:.upper, .fns = ~sprintf("%.2f", .x))) |> 
+  relocate(c_p, .before = .upper) |> 
+  mutate("Estimate" = paste0("[", .lower, ", ", c_p, ", ", .upper, "]")) |> 
+  select(Item, Group, "Observed" = observed_c_p, Estimate)
+
+NS <- 
+  NS |> 
+  pivot_wider(names_from = Item, 
+              values_from = c("Observed", "Estimate"),
+              names_glue = "{Item}.{.value}") |> 
+  select(
+    Group, 
+    Fair.Observed, Fair.Estimate,
+    Display.Observed, Display.Estimate,
+    Mislead.Observed, Mislead.Estimate
+  )
+
+NS <- 
+  NS |>
+  as_hux() |> 
+  insert_row("", "Fair", "", "Display", "", "Mislead", "", after = 0) |> 
+  set_contents(2, 2:7, c("Observed", "Model Estimate", 
+                         "Observed", "Model Estimate", 
+                         "Observed", "Model Estimate")) |> 
+  merge_cells(1, 2:3) |> 
+  merge_cells(1, 4:5) |> 
+  merge_cells(1, 6:7) |> 
+  set_align(col = c(2, 4, 6), value = "right") |>
+  set_align(col = c(3, 5, 7), value = "left") |>
+  set_align(1, everywhere, "center") |> 
+  set_top_border(row = 1, value = 1) |> 
+  set_bottom_border(row = 2, value = .5) |> 
+  set_bottom_border(row = 6, value = 1) |> 
+  set_col_width(col = c(3, 5, 7), .2) |> 
+  set_caption(value = "Observed Agreement and Model Estimates for National Standard Items")
+
+# Save output as word docx
+# quick_docx(NS, file = here("Bayes/Output/CM-Probit/Tables/APPS_NS-Agreement.docx"))
+
+# Print to html (when knitting)
+NS
+```
+
+```{r}
+NS <- posterior.sum[1:3, ]
+
+NS |> 
+  select(Item, ES) |> 
+  unnest(ES) |> 
+  select(!c(.width, .point, .interval)) |> 
+  mutate(across(where(is.double), .fns = ~sprintf("%.2f", .x))) |> 
+  as_hux() |> 
+  set_top_border(row = 1, value = 1) |> 
+  set_bottom_border(row = c(1, 7, 13), value = .5) |> 
+  set_bottom_border(row = 19, value = 1) |>
+  set_caption(value = "Model Effect Size Estimates for National Standard Items")
+```
+
+There was broad agreement across all experimental groups (> 80%) that poker machines are likely to mislead or deceive consumers. Agreement with this item was typically greater in the Design group, relative to Control (d = .388, [0.177, 0.603]), Brain (d = 0.380, [0.158, 0.602]) and Clubs groups (d = 0.523, [0.293, 0.736]). There was little difference between the Brain and Control groups (d = 0.03, [-0.17, 0.24]), and a mild reduction to negligible influence of the Clubs condition, relative to the Control (d = -0.12, [-0.34, 0.08]).
+
+Over half (55.3%, $p_{StronglyAgree}$ = .557, [.493, .617]) of the participants in the Design group selected "Strongly Agree" on this item, and it remained the choice with the highest proportion across all groups, (Control = 40.1%, $p_{StronglyAgree}$ = .402 [.343, .466], Brain = 39.9%, $p_{StronglyAgree}$ = .402 [.341, .465], Clubs = 36.3%, $p_{StronglyAgree}$ = .344 [.281, .408]). Where $p_{StronglyAgree}$ represents the models estimated probability of selecting this response along with 95% HDPI in square brackets.
+
+Some code to generate these additional numbers below:
+
+```{r}
+d |> 
+  select(Group, contains("NS_")) |>
+  pivot_longer(contains("NS_"), names_to = "Item", values_to = "Response") |> 
+  # Here I drop I Don't Know Responses, as these are analysed separately.
+  mutate(Response = factor(Response, exclude = "I Don't Know")) |> 
+  filter(!is.na(Response)) |> 
+  mutate(Response = fct_rev(Response)) |> 
+  mutate(Item = factor(Item, levels = levels, labels = labels)) |> 
+  count(Group, Item, Response) |> 
+  ungroup() |> 
+  group_by(Group, Item) |> 
+  mutate(prop = n/sum(n),
+         observed_c_p = cumsum(n)/sum(n)) |> 
+  filter(Item == "Mislead") |> 
+  mutate(across(where(is.double), .fns = ~sprintf("%.3f", .x))) |> 
+  filter(Response == "Strongly Agree") |> 
+  kable()
+```
+
+```{r}
+NS |>  
+  filter(Item == "Mislead") |> 
+  select(p) |> 
+  unnest(p) |> 
+  filter(Response == "Strongly Agree") |> 
+  kable()
+```
+
+A nice to summarise these models is to plot the estimations of the cumulative response pattern (see blow). The Y axis displays the *cumulative* probability or proportion of the sample that chose at each response level, or lower starting from Strongly Disagree. I've plotted both the model estimates (the coloured point w/ error bar) and the observed proportions (black circles). This is nice, because we can easily comment on the response level at which we observed a majority.
+
+```{r fig.cap="Cummulative Probability at Each Response Level by Item and Group", fig.height=5}
+# Script to create truncated cumulative probability plot for National Standard Items.
+reverse_NS <- readRDS(here("Analysis/Models/Output/CM-Probit/APPS_NS_Reverse_CM-Probit.rds"))
+
+questions |> 
+  select(contains("NS_")) |> 
+  pivot_longer(cols = everything(), names_to = "Item", values_to = "Text") |> 
+  pull(Text) -> plot_titles
+
+reverse_NS <- 
+  reverse_NS |>
+  select(c_p, data_sum) |> 
+  mutate(Item = factor(Item)) |> 
+  mutate(Description = factor(Item, levels = c("Fair", "Display", "Mislead"), labels = plot_titles), .after = Item) |> 
+  mutate(plot_sum = purrr::map(
+    .x = c_p,
+    .f = function(.x){
+      .x |>
+        group_by(Group, Response) |> 
+        point_interval(c_p, .point = median, .interval = hdi)
+    }))
+
+plot_NS <- function(plot_sum, data_sum) {
+  ggplot(data = plot_sum) +
+    # Draw a line a majority support
+    geom_hline(yintercept = .5) +
+    scale_y_continuous(breaks = (0:10)/10, limits = c(0, 1)) +
+    scale_colour_manual(values = APPS_ColourScheme) +
+    # Plot cumulative probability
+    geom_errorbar(data = plot_sum,
+                  mapping = aes(group = Group,
+                                colour = Group,
+                                x = Response,
+                                ymin = .lower,
+                                ymax = .upper),
+                  width = .25,
+                  position = position_dodge(width = .5)) +
+    geom_point(data = plot_sum,
+               mapping = aes(group = Group,
+                             colour = Group,
+                             x = Response,
+                             y = c_p),
+               size = 2.25,
+               position = position_dodge(width = .5)) +
+    geom_point(data = data_sum,
+               mapping = aes(x = Response, y = c_p, group = Group),
+               colour = "black",
+               size = 2.25,
+               position = position_dodge(width = .5),
+               shape = 1) +
+    labs(x = NULL,
+         colour = NULL,
+         y = NULL) +
+    theme(plot.subtitle = element_text(size = 12), 
+          aspect.ratio = 1)
+}
+
+reverse_NS <- 
+  reverse_NS |> 
+  mutate(plot = purrr::map2(
+    .x = plot_sum,
+    .y = data_sum,
+    .f = plot_NS
+  ))
+
+# Truncate Axes
+reverse_NS$plot[[1]] <- reverse_NS$plot[[1]] + 
+  scale_x_discrete(limits = levels(reverse_NS$data_sum[[1]]$Response)[1:3],
+                   labels = c("Strongly\nDisagree", "Disagree", "Slightly\nDisagree"))
+
+reverse_NS$plot[[2]] <- reverse_NS$plot[[2]] + 
+  scale_x_discrete(limits = levels(reverse_NS$data_sum[[2]]$Response)[1:3],
+                   labels = c("Strongly\nDisagree", "Disagree", "Slightly\nDisagree"))
+
+# Flip axis display order and truncate
+reverse_NS$plot[[3]] <- reverse_NS$plot[[3]] + 
+  scale_x_discrete(limits = levels(reverse_NS$data_sum[[3]]$Response)[1:3],
+                   labels = c("Strongly\nAgree", "Agree", "Slightly\nAgree"))
+
+legend <- 
+  get_legend(
+    reverse_NS$plot[[1]] + 
+      guides(color = guide_legend(nrow = 1)) +
+      theme(legend.position = "bottom",
+            legend.justification = .5, 
+            legend.margin = margin(t = 15, b = 0),
+            legend.background = element_blank())
+  )
+
+plot <- 
+  plot_grid(
+    reverse_NS$plot[[1]] + 
+      theme(legend.position = "none",
+            plot.margin = margin(l = 15, r = 0, t = 0, b = 0)) + 
+      labs(subtitle = "... are fair",
+           y = "Cumulative Probability / Proportion"), 
+    NULL,
+    reverse_NS$plot[[2]] + 
+      theme(legend.position = "none",
+            plot.margin = margin(l = 0, r = 0, t = 0, b = 0)) +  
+      labs(subtitle = "... accurately display outcomes"), 
+    NULL,
+    reverse_NS$plot[[3]] + 
+      theme(legend.position = "none",
+            plot.margin = margin(l = 0, r = 20, t = 0, b = 0)) +
+      labs(subtitle = "... are likely to mislead or decieve"),
+    rel_widths = c(1, -.075, 1, -.075, 1),
+    align = "v",
+    nrow = 1)
+
+plot <- plot_grid(legend, plot, NULL, ncol = 1, rel_heights = c(.1, 1, -.05))
+
+caption <- list(caption = "
+                Error bars = 95% highest posterior density interval
+                Coloured point estimate = posterior median
+                Black = observed cumulative proportion in data
+                Plots have been truncated to display 3 response items
+                ")
+
+plot <- add_sub(plot, label = caption, 
+                x = .9825, hjust = 1, size = 10, vpadding = grid::unit(0, "lines"))
+
+ggdraw(plot) ## Plot saved from Rstudio as NS_Figure.svg
+```
+
+Conversely our sample tended to disagree, on average, that poker machines are fair (all groups > 70%). Strongly Disagree, was the most popular choice across all conditions,  Control = 31.1%, $p_{StronglyDisagree}$ = 0.313 [0.256, 0.370]; Brain = 36.6%, $p_{StronglyDisagree}$ = 0.365 [0.308, 0.426]; Design = 43.4%, $p_{StronglyDisagree}$ = 0.435, [0.374, 0.499]; Clubs = 30.6%, $p_{StronglyDisagree}$ = 0.298 [0.236, 0.355]. This tendency towards greater disagreement was more pronounced in the Design group, relative to both the Control group ($d_s$ = -0.30 [-0.50, -0.10]), and the Clubs group ($d_s$ = -0.36 [-0.56, -0.15]). Participants in the Brain group also tended to disagree more, relative to the Clubs ($d_s$ = -0.22 [-0.43, -0.02]),  and Control conditions, ($d_s$ = -0.15 [-0.34, 0.05]), and tended to agree more relative to the Design group ($d_s$ = 0.16  [0.36, -0.05]), though HDPIs for the latter two estimates included both positive and negative values. Finally, differences between the Control and Clubs group were typically mild ($d_s$ = 0.07 [-0.13, 0.27]).
+
+```{r}
+NS |>  
+  filter(Item == "Fair") |> 
+  select(p) |> 
+  unnest(p) |> 
+  filter(Response %in% c("Strongly Disagree", "Disagree", "Slightly Disagree")) |> 
+  mutate(across(where(is.double), .fns = ~sprintf("%.3f", .x))) |> 
+  kable()
+
+d |> 
+  select(Group, contains("NS_")) |>
+  pivot_longer(contains("NS_"), names_to = "Item", values_to = "Response") |> 
+  # Here I drop I Don't Know Responses, as these are analysed separately.
+  mutate(Response = factor(Response, exclude = "I Don't Know")) |> 
+  filter(!is.na(Response)) |> 
+  mutate(Response = fct_rev(Response)) |> 
+  mutate(Item = factor(Item, levels = levels, labels = labels)) |> 
+  count(Group, Item, Response) |> 
+  ungroup() |> 
+  group_by(Group, Item) |> 
+  mutate(prop = n/sum(n) *100) |> 
+  filter(Item == "Fair") |> 
+  mutate(across(where(is.double), .fns = ~sprintf("%.1f", .x))) |> 
+  filter(str_detect(Response, "isagree")) |> 
+  kable()
+```
+
+
+We also observed a significant main effect of experimental group for every item in this section of the survey.
+
+### Contrasts
+
+#### Experimental vs. Control
+
+For each of these items the direction of observed difference between each experimental group and the Control group were all as expected, and we observed a repeated pattern of responses across each item.
+
+Relative to participants in the Control group, participants in the Design group responded with a lower average level of endorsement for the fairness item g = -.26 [-.46, -.07], and to a lesser extent the item concerning the accurate display of gambling outcomes g = -0.15 [-0.35,	0.02] (n.s.). Each of these CIs items included values near zero, and up to an including a small to moderate effect size. Participants in the Design group also expressed greater support on average for the statement "Poker machines are likely to mislead or deceive consumers", relative to the Control, g = 0.315 [0.130, 0.520]. The entire CI for this effect size estimate fell entirely outside the negligible range, and included effects of up to half of a standard deviation, or a moderate effect size.
+The differences between the Control group and the Brain group were all in the hypothesised direction, however all CIs for the effect size estimate included 0 (i.e. all non-significant). In each case the CIs included small effect size in the hypothesised direction as well as negligibly small effects either side of 0 (n.s). These results are consistent with a smaller magnitude of effect for the Brain intervention, relative to the Design intervention. Though contrasts indicated that the observed differences between these two experimental groups may have simply been due to sampling variability, considering the CIs for this difference (see table below). The difference between these groups for the "likely to mislead or deceive" item", however, was more substantial, though likely still small.
+
+The general pattern of responding for the Clubs group relative to the Control was the inverse of the Design group, as expected. While this difference was non-significant for two of the three items (CIs included 0), comparisons between the Clubs condition and the other two experimental groups suggested a reliable difference across almost every item in the hypothesised direction. The possible exception being the comparison with the Brain group on the "likely to mislead or deceive" item for which the CI narrowly included zero.
+
+## What about variance?
+
+These models do not assume equal variance, we actually estimate the latent variance in each group as well as the mean. We could also report this, as sometimes it might be of interest because an increase or decrease in variance in responding might indicate that the intervention had greater effect on side of the distribution relative to the other. These models work by assigning our control group a standardised normal distribution with a mean of 0 and SD of 1, so all estimates are relative to this scale, and I've reported the differences in the table below.
+
+```{r}
+NS |> 
+  select(Item, SD_diffs) |> 
+  unnest(cols = SD_diffs) |>
+  filter(str_detect(Contrast, "Control")) |> 
+  arrange(Item, diff) |> 
+  kable(digits = 3, caption = "Difference vs. Control for Group SD")
+```
+
+So, for instance, the model is estimating that there is more variation in the Design condition, for the accurately displays outcomes item, suggesting perhaps, that in addition to the mild increase in the mean, there is also more variation in responding.
+
+To understand exactly what this means I find I have to visualise the (estimated) latent distribution. I've plotted the model perception of the data below. Compare this against the the raw data. In addition to the increased disagreement in the design group there was also a larger number observed for "Strongly Agreed". The model seems to be using the SD to account for this. I'd suggest this is a little TMI for the paper.
+
+```{r}
+# Date might change so some code here to re-compose the filname of the plot from the dir
+plot_name <- list.files((here("Analysis/Models/Output/Plots")))
+plot_name <- plot_name[str_detect(plot_name, "2_Display_ThresholdPlot")]
+
+ggdraw() +
+  draw_image(here("Analysis/Models/Output/Plots/", plot_name))
+```
+
+# Access / Legalisation.
+
+```{r}
+# The busy environment is driving my mad so I'm going to clean up a bit.
+rm(list = c("i", "IDK", "IDK.summary", "model_flist", "NS", "plot", "reverse_NS", "summary.NS.raw", "labels", "levels", "plot_titles", "predictions", "vars", "plot_name"))
+```
+
+We asked three questions about support for limiting access to EGMs:
+
+  - State governments should impose a limitation on the number of poker machines available in any one postcode, to prevent the clustering of machines in disadvantaged areas. 
+  - Pokies gambling should be banned in pubs, clubs and RSLs. 
+  - Pokies gambling should be banned in all venues including casinos.
+
+## Hypotheses
+
+The same pattern of predictions across each of these items as follows: 
+
+Design >/= Brain > Control > Clubs
+
+**A Thought**: These items are thematically very similar in that they all relate to blanket restrictions in access to EGMs, albeit at differing levels of intensity. If we want to reduce the size of the results section, could we potentially consider them as a single scale, and analyse the responses in one swoop, rather than 3 separate items? 
+
+I could also try a varying effects model that accounts for differences in items and individuals... something like: `Response ~ Group + (1 + Group | Item) + (1 + Group | Item)`. We could also consider combining the 2 items about mandatory pre-commitment with the 2 items about voluntary venue self-exclusion, into a 4 item scale that measured acceptance of "self-binding" policy proposals?
+
+I'll press on as planned for now, but might cycle back to this if we end up feeling that our results section is too verbose.
+
+## Data Distribution
+
+```{r legal-raw, message=FALSE, fig.fullwidth=TRUE, fig.align = "center", fig.width = 11}
+vars <- c("Legal_Post", "Legal_Pubs", "Legal_All")
+
+questions$Legal_Post <- "State governments should impose a limitation on the number of poker machines available in any one
+postcode, to prevent the clustering of machines in disadvantaged areas."
+
+for (i in vars) {
+  
+  # Summarise
+  d.summary <- 
+  d |>
+    select(Group, Response = i) |>
+    count(Group, Response) |>
+    group_by(Group) |>
+    mutate(Percent = (n / sum(n))*100)
+  
+  d.summary |> 
+    # Pipe to plot
+    ggplot(mapping = aes(y = Percent, fill = Group, x = Response)) +
+    scale_fill_manual(values = APPS_ColourScheme) +
+    labs(title = questions |> pull(eval(parse(text = i))),
+         colour = NULL,
+         x = NULL,
+         y = "Percent\n(Relative Frequency)") +
+    geom_col(position = position_dodge()) +
+    coord_cartesian(ylim = c(0, 50)) +
+    scale_y_continuous(breaks = seq(from = 0, to = 50, by = 5)) -> i
+  
+  print(i)  
+}
+
+```
+
+## Analysis
+
+I'll reproduce the same graphic I used above to summarise these results:
+
+```{r}
+plot_titles <- c(
+  "Limit by Postcode",
+  "Ban in Pubs, Clubs and RSLs",
+  "Complete Ban"
+)
+
+# I'll try to wrap some of these operations up in functions so that I can re-use them for subsequent 
+# graphics
+
+# Data wrangling function
+prepare_plot_data <- function(d, posterior.sum, vars, plot_titles) {
+
+d |> 
+  select(Group, all_of(vars)) |> 
+  pivot_longer(cols = all_of(vars), names_to = "Item", values_to = "Response") |> 
+  mutate(Response = fct_rev(Response)) |> 
+  group_by(Item) |> 
+  nest(data = c(Group, Response)) -> d.summary
+
+d.summary <- 
+  d.summary |> 
+  mutate(data_sum = purrr::map(
+    .x = data,
+    .f = function(.x) {
+      .x |> 
+        select(Group, Response) |> 
+        group_by(Group) |> 
+        count(Response) |> 
+        mutate(Proportion = (n / sum(n)),
+               c_p = cumsum(Proportion))
+    }
+  ))
+
+plot_data <- 
+  posterior.sum |> 
+  filter(Item %in% vars) |> 
+  select(Item, Description, c_p) |> 
+  left_join(d.summary, by = "Item") |> 
+  select(!data)
+
+plot_data <- 
+  plot_data |> 
+  select(Item, c_p, data_sum) |> 
+  mutate(Item = factor(Item)) |>  
+  mutate(Description = factor(Item, levels = vars, labels = plot_titles), .after = Item)
+
+return(plot_data)
+
+}
+
+# A plotting function.
+multi_plot <- function(c_p, data_sum) {
+  ggplot(data = c_p) +
+    # Draw a line a majority support
+    geom_hline(yintercept = .5) +
+    scale_y_continuous(breaks = (0:10)/10, limits = c(0, 1)) +
+    scale_colour_manual(values = APPS_ColourScheme) +
+    scale_fill_manual(values = APPS_ColourScheme) +
+    # Plot cumulative probability
+    geom_errorbar(data = c_p,
+                  mapping = aes(group = Group,
+                                colour = Group,
+                                x = Response,
+                                ymin = .lower,
+                                ymax = .upper),
+                  width = .25,
+                  position = position_dodge(width = .5)) +
+    geom_point(data = c_p,
+               mapping = aes(group = Group,
+                             colour = Group,
+                             fill = Group,
+                             shape = Group,
+                             x = Response,
+                             y = c_p),
+               size = 2.25,
+               position = position_dodge(width = .5)) +
+    geom_point(data = data_sum,
+               mapping = aes(x = Response, y = c_p, group = Group, shape = Group, fill = NULL),
+               colour = "black",
+               size = 2.25,
+               position = position_dodge(width = .5)) +
+    scale_shape_manual(values = c(21, 22, 23, 24)) +
+    labs(x = NULL,
+         colour = NULL,
+         fill = NULL,
+         shape = NULL,
+         y = NULL) +
+    theme(plot.subtitle = element_text(size = 12),
+          plot.margin = margin(0),
+          aspect.ratio = 1) +
+    # Truncate Axes
+    scale_x_discrete(limits = levels(data_sum$Response)[1:3],
+                     labels = c("Strongly\nAgree", "Agree", "Slightly\nAgree"))
+}
+
+plot_data <- prepare_plot_data(d, posterior.sum, vars, plot_titles)
+
+plot_data <- 
+  plot_data |> 
+  mutate(plot = purrr::map2(
+    .x = c_p,
+    .y = data_sum,
+    .f = multi_plot
+  ))
+
+legend <- 
+  get_legend(
+    plot_data$plot[[1]] + 
+      guides(color = guide_legend(nrow = 1)) +
+      theme(legend.position = "bottom",
+            legend.justification = .5, 
+            legend.margin = margin(t = 15, b = 0),
+            legend.background = element_blank())
+  )
+
+plot <- 
+  plot_grid(
+    NULL,
+    ylab,
+    plot_data$plot[[1]] + 
+      theme(legend.position = "none",
+            plot.margin = margin(l = 0, r = 7.5, t = 15, b = 0)) + 
+      labs(subtitle = plot_titles[[1]]),
+    plot_data$plot[[2]] + 
+      theme(legend.position = "none",
+            plot.margin = margin(l = 0, r = 7.5, t = 15, b = 0)) + 
+      labs(subtitle = plot_titles[[2]]),
+    plot_data$plot[[3]] + 
+      theme(legend.position = "none",
+            plot.margin = margin(l = 0, r = 15, t = 15, b = 0)) + 
+      labs(subtitle = plot_titles[[3]]),
+    rel_widths = c(.05, .1, rep(1, 3)),
+    nrow = 1)
+
+# Re-use legend and caption from earlier.
+plot <- plot_grid(legend, plot, NULL, ncol = 1, rel_heights = c(.15, 1, .05))
+
+ggdraw(plot)
+```
+
+There was strong support across all experimental groups for limiting the availability of EGMs by postcode. For a ban of EGMs in pubs and clubs, there was slight majority support in the Control group (though the lower bound of the HDPI was at .504), and a majority for Brain, and Design Group, but not the Clubs condition. Finally for the full ban, the total agreement for the Design group was just barely above 50% (the HDPI contained values below 50%). For this last item, total agreement among the Clubs and Control fell below 50%, and the Brian group was centred close to 50%.
+
+### Cumulative Probabilities
+
+Here is a table containing all observed cumulative proportions and model estimated cumulative probabilities. I'll probably just use the figure above in the paper. All model estimates are within +/- 0.05 of the observed values, but there is some deviation.
+
+```{r}
+this <- 
+  plot_data |> 
+    ungroup() |> 
+    select(Description, data_sum) |> 
+    unnest(data_sum) |> 
+    select(Description, Group, Response, Observed = c_p)
+
+that <-   
+  plot_data |> 
+    ungroup() |> 
+    select(Description, c_p) |> 
+    unnest(c_p) |> 
+    select(!c(.width, .point, .interval)) |> 
+    mutate(Group = factor(Group, levels = levels(this$Group), ordered = F))
+
+this <- left_join(this, that, by = c("Description", "Group", "Response"))
+kable(this, caption = "Observered Cummulative Proportions vs. Model Estimated Cummulative Probabilities")
+```
+
+All model estimates are within +/- 0.05 of the observed values, but there is some deviation. Such deviations aren't necessary wrong, but they are a result of the constraints/assumptions of the model. We are hoping to find generalisable features of the data, rather than perfectly retrodict the data, the model constraints will hopefully help here, but they could be wrong.
+
+```{r}
+# Look for bad model fit to data
+# this |> filter(abs(Observed - c_p) > 0.05)
+```
+
+### Contrasts
+
+```{r}
+posterior.sum |> 
+  filter(Item %in% vars) |> 
+  select(Item, ES) |> 
+  ungroup() |> 
+  mutate(Description = c("Postcode", "Pubs and Clubs", "Everywhere"), .after = Item) |> 
+  unnest(ES) |> 
+  # Round to 2 DP
+  mutate(across(where(is.double), .fns = ~sprintf("%.2f", .x))) |> 
+  mutate(
+    Contrast = str_replace(Contrast, pattern = "_", replacement = " v. "),
+    ES = paste0(ES, ", [", .lower, ", ", .upper, "]")
+  ) |> 
+  # trim
+  select(Item = Description, Contrast, "Effect Size" = ES) |> 
+  pivot_wider(names_from = Item, values_from = `Effect Size`) |> 
+  # Relabel factor to describe contrast.
+  mutate(
+    Contrast = factor(
+      Contrast,
+      levels = c("Control v. Brain", 
+                 "Control v. Design", 
+                 "Control v. Clubs", 
+                 "Clubs v. Brain", 
+                 "Clubs v. Design", 
+                 "Brain v. Design"),
+      labels = c("Brain - Control", 
+                 "Design - Control", 
+                 "Clubs - Control", 
+                 "Brain - Clubs", 
+                 "Design - Clubs", 
+                 "Design - Brain")
+    )
+  ) |> 
+  kable(caption = "Group Contrasts for Access/Legalisation Items")
+```
+
+Participants in the Clubs condition displayed a greater tendency to disagree with proposals to limit access to EGMs, relative all other conditions. HDPIs around these contrasts included zero for the first two items relative to the Control condition, and for the postcode item relative to the Brain condition. Conversely, participants in the Design condition displayed a greater tendency to agree with proposals to limit access to EGMs relative to all other conditions, though contrasts with the Control condition and Brain conditions were typically small and HDPIs included zero or near zero values. The only exception was the proposal of a total ban on EGMs in all venues, where we observed a small effect size reliably above zero for the Design/Control contrast. Posterior estimates for contrasts between the Brain condition and the Control condition were centred around small to negligible effect sizes, and all intervals included zero. Finally, contrasts between the Design and Clubs condition were all reliably above .1, suggesting an increased tendency to agree with limiting access in the Design group, relative to the Clubs group.
+
+# Pre-commitment and Self-Exclusion
+
+## Hypotheses
+
+This set of questions asked participants about mandatory pre-commitment and self-exclusion programs. In each case we provided a paragraph explaining each of these policy proposals in detail, following the explanation of each strategy, we asked whether a participant would support that policy being applied in: 
+
+  - For all pokies gambling venues
+  - For pokies gambling venues and all other gambling venues (including online operators)
+
+As with the previous items we are expected a pattern of support to be: Design >/= Brain > Control > Clubs
+
+I'm also curious whether the effect of the Design intervention will be more pronounced for Pokies only items, than the all gambling, relative to the other groups.
+
+## Data Distribution
+
+```{r PCSE-raw, message=FALSE, fig.fullwidth=TRUE, fig.align = "center", fig.width = 11}
+vars <- c("PC_Pokies", "PC_All", "SE_Pokies", "SE_All")
+names <- c("Pre-Commitment: EGMs only", "Pre-Commitment: All gambling", "Self-Exclusion: EGMs only", "Self-Exclusion: All Gambling")
+
+for (i in 1:length(vars)) {
+  # Summary
+  d  |> 
+    select(Group, Response = vars[i]) |>
+    filter(Response != "I Don't Know") |>
+    count(Group, Response) |>
+    group_by(Group) |>
+    mutate(Percent = (n / sum(n))*100) |>
+    # pipe to plot
+    ggplot(mapping = aes(y = Percent, fill = Group, x = Response)) +
+    scale_fill_manual(values = APPS_ColourScheme) +
+    labs(title = str_wrap(names[i], width = 100),
+         colour = NULL,
+         x = NULL,
+         y = "Percent\n(Relative Frequency)") +
+    geom_col(position = position_dodge()) +
+    coord_cartesian(ylim = c(0, 50)) +
+    scale_y_continuous(breaks = seq(from = 0, to = 50, by = 5)) -> i
+  
+  print(i)  
+}
+```
+
+## Analysis
+
+### Cummulative Agreement
+
+```{r, fig.width=11, fig.height=3.8}
+plot_titles <- c(
+  "Pre-Commitment\nEGMs only", 
+  "Pre-Commitment\nAll gambling", 
+  "Self-Exclusion\nEGMs only", 
+  "Self-Exclusion\nAll Gambling")
+
+plot_data <- prepare_plot_data(d, posterior.sum, vars, plot_titles)
+
+plot_data <- 
+  plot_data |> 
+  mutate(plot = purrr::map2(
+    .x = c_p,
+    .y = data_sum,
+    .f = multi_plot
+  ))
+
+plot <- 
+  plot_grid(
+    NULL,
+    ylab,
+    plot_data$plot[[1]] + 
+      theme(legend.position = "none",
+            plot.margin = margin(l = 0, r = 7.5, t = 15, b = 0)) + 
+      labs(subtitle = plot_titles[[1]]),
+    plot_data$plot[[2]] + 
+      theme(legend.position = "none",
+            plot.margin = margin(l = 0, r = 7.5, t = 15, b = 0)) + 
+      labs(subtitle = plot_titles[[2]]),
+    plot_data$plot[[3]] + 
+      theme(legend.position = "none",
+            plot.margin = margin(l = 0, r = 7.5, t = 15, b = 0)) + 
+      labs(subtitle = plot_titles[[3]]),
+    plot_data$plot[[4]] + 
+      theme(legend.position = "none",
+            plot.margin = margin(l = 0, r = 7.5, t = 15, b = 0)) + 
+      labs(subtitle = plot_titles[[4]]),
+    NULL,
+    rel_widths = c(.05, .1, rep(1, 4), .05),
+    nrow = 1)
+
+# Re-use legend and caption from earlier.
+plot <- plot_grid(legend, plot, NULL, ncol = 1, rel_heights = c(.15, 1, .05))
+
+ggdraw(plot)
+```
+
+Here are those same values in a table:
+
+```{r}
+plot_data <- 
+  plot_data |> 
+    ungroup() |> 
+    mutate(Description = names)
+
+this <- 
+  plot_data |> 
+  ungroup() |> 
+  select(Description, data_sum) |> 
+  unnest(data_sum) |> 
+  select(Description, Group, Response, Observed = c_p)
+
+that <-   
+  plot_data |> 
+  ungroup() |> 
+  select(Description, c_p) |> 
+  unnest(c_p) |> 
+  select(!c(.width, .point, .interval)) |> 
+  mutate(Group = factor(Group, levels = levels(this$Group), ordered = F))
+
+this <- left_join(this, that, by = c("Description", "Group", "Response"))
+
+this <- 
+  this |> 
+    mutate(across(where(is.double), .fns = ~sprintf(.x, fmt = "%.2f"))) |> 
+    mutate(
+      # Estimate = paste(.lower, c_p, .upper, sep = ", "),
+      HDPI     = paste0("[", .lower, ", ", .upper, "]"),
+      Policy   = str_extract(Description, pattern = ".*(?=:)"),
+      Scope    = if_else(str_detect(Description, pattern = "EGMs"), 
+                         "EGMs Only", "All Gambling"),
+      value    = paste(Observed, HDPI)
+    ) |> 
+    select(Policy, Scope, Group, Response, value) |> 
+    pivot_wider(names_from = Scope, values_from = value)
+
+kable(this |> filter(!str_detect(Response, "Disagree")), 
+      caption = "Observered Cummulative Agreement and Model 95% HDPI")
+```
+
+We asked participants whether each of these policy proposals should be applied to EGMs alone, and then whether they should apply to all gambling operators (including online). In each case overall support for the application to EGMs alone was very similar to the application to all gambling (including EGMs and online operators). We observed very widespread agreement across all groups for each of these proposals. Total cumulative agreement (any agreement) is displayed above. Over 60% responded either “Strongly Agree” or “Agree”, across all groups on all items, indicating that this widespread support was more than tentative for most respondents (i.e. greater than “Slightly Agree”).
+
+### Contrasts
+
+```{r}
+posterior.sum |> 
+  filter(Item %in% vars) |> 
+  select(Item, ES) |> 
+  ungroup() |> 
+  mutate(Description = names, .after = Item) |> 
+  mutate(
+    Policy   = str_extract(Description, pattern = ".*(?=:)"),
+    Scope    = if_else(str_detect(Description, pattern = "EGMs"), 
+                       "EGMs Only", "All Gambling"),
+    .after = Item
+  ) |> 
+  select(!Description) |> 
+  unnest(ES) |> 
+  # Round to 2 DP
+  mutate(across(where(is.double), .fns = ~sprintf("%.2f", .x))) |> 
+  mutate(ES = paste0(ES, " [", .lower, ", ", .upper, "]")) |> 
+  # trim
+  select(Policy, Scope, Contrast, "Effect Size" = ES) |> 
+  pivot_wider(names_from = Scope, values_from = `Effect Size`) |> 
+  # Relabel factor to describe contrast.
+  mutate(
+    Contrast = factor(
+      Contrast,
+      levels = c("Control_Brain", 
+                 "Control_Design", 
+                 "Control_Clubs", 
+                 "Clubs_Brain", 
+                 "Clubs_Design", 
+                 "Brain_Design"),
+      labels = c("Brain - Control", 
+                 "Design - Control", 
+                 "Clubs - Control", 
+                 "Brain - Clubs", 
+                 "Design - Clubs", 
+                 "Design - Brain")
+    )
+  ) |> 
+  kable(caption = "Group Contrasts for Pre-Commitment and Self-Exclusion Items")
+```
+
+Effect size estimates for all contrasts between group latent means for the self-exclusion and pre-commitment proposals are displayed in the table above. We observed no substantial differences between any condition for the self-exclusion items. In each case posterior estimates for the effect size were either very small or negligible, and all HDPIs included a range of values either side of zero. Likewise, differences for the pre-commitment items were small, though we observed a small difference between the Design and Clubs condition for both settings, and a small difference relative to the Control condition for the application of pre-commitment to EGM venues. There was also very mild difference between the Brain and Clubs conditions. In each case uncertainty intervals also included zero or near zero values.
+
+# Remaining Policy Items
+
+## Hypotheses
+
+I've grouped the analysis of the remaining policy items together. As before we had the same hypotheses, Design > Brain > Control > Clubs, with the exception of the counselling/treatment item, where we expect a higher rate of support in the Brain condition.
+
+```{r etc-Questions, message=FALSE, fig.fullwidth=TRUE, fig.align = "center", fig.width = 11}
+vars <- c("MaxBets",
+          "Counselling_Treat",
+          "MEDIA",
+          "VenueInfo_Contact",
+          "VenueInfo_Hourly",
+          "ScreenMSG")
+
+vars_pretty <- c("$1 AUD Maximum Bets", 
+                 "Free Treatment", 
+                 "Media Campaigns", 
+                 "Helpline Number and Warnings", 
+                 "Expected Hourly Losses", 
+                 "Onscreen Pop-Up Messages")
+
+names <- c(
+  "$1 Maximum Bets for Australian Pokies",
+  "Access to counselling and treatment for gambling addiction at no cost, funded by taxes on gambling revenue.", 
+  "Gvt mass media campaigns to provide information about gambling harm", 
+  "Venues should be required to display prominent warnings and contact information for gambling counselling services inside gambling venues in clearly visible locations", 
+  "Venues should be required to prominently display accurate information about the average hourly losses of poker machines", 
+  "Venues should be required to display pop-up messages designed to prevent harmful gambling on the poker machine screen when an individual has been using a machine for an extended period of time."
+)
+
+questions |> 
+  select(all_of(vars)) |>
+  pivot_longer(everything(), names_to = "Variable Name", values_to = "Question Text") |>
+  mutate(`Question Text` = str_remove(`Question Text`, pattern = "(?:\\nTo what extent).*")) |>
+  mutate(`Question Text` = str_replace(`Question Text`, pattern = "\\n", replacement = ": ")) |>
+  mutate("Variable Name" = factor(`Variable Name`, levels = vars, labels = vars_pretty)) |>
+  as_hux() |> 
+  set_top_border(row = 1, value = 1) |>
+  set_bottom_border(row = 1, value = .5) %>% # I need the old pipe for the dot operator
+  set_bottom_border(row = nrow(.), value = 1) |>
+  set_align(col = everywhere, value = "right") |> 
+  set_align(col = 1:2, value = "left") |> 
+  set_all_padding(row = .8) |> 
+  set_valign(value = "bottom", col = 2) |> 
+  set_width(value = 1) |> 
+  set_col_width(1, value = .25) |> 
+  set_col_width(2, value = .75) |> 
+  set_caption(value = "Remaining Policy Items")
+```
+
+## Data Distribution
+
+```{r etc-raw, message=FALSE, fig.fullwidth=TRUE, fig.align = "center", fig.width = 11}
+for (i in 1:length(vars)) {
+  # Summarise
+  d |>
+    select(Group, Response = vars[i]) |>
+    count(Group, Response) |>
+    group_by(Group) |>
+    mutate(Percent = (n / sum(n))*100) |>
+    # Pipe to plot
+    ggplot(mapping = aes(y = Percent, fill = Group, x = Response)) +
+    scale_fill_manual(values = APPS_ColourScheme) +
+    labs(title = str_wrap(vars_pretty[i], width = 85),
+         colour = NULL,
+         x = NULL,
+         y = "Percent\n(Relative Frequency)") +
+    geom_col(position = position_dodge()) +
+    coord_cartesian(ylim = c(0, 50)) +
+    scale_y_continuous(breaks = seq(from = 0, to = 50, by = 5)) -> i
+  
+  print(i)  
+}
+```
+
+## Analysis
+
+### Cummulative Agreement
+
+```{r, fig.height=8}
+vars <- c("MaxBets",
+          "Counselling_Treat",
+          "MEDIA",
+          "VenueInfo_Contact",
+          "VenueInfo_Hourly",
+          "ScreenMSG")
+
+plot_titles <- c("$1 AUD Maximum Bets", 
+                 "Free Treatment", 
+                 "Media Campaigns", 
+                 "Helpline Number and Warnings", 
+                 "Expected Hourly Losses", 
+                 "Onscreen Pop-Up Messages")
+
+plot_data <- prepare_plot_data(d, posterior.sum, vars, plot_titles)
+
+plot_data <- 
+  plot_data |> 
+  mutate(plot = purrr::map2(
+    .x = c_p,
+    .y = data_sum,
+    .f = multi_plot
+  ))
+
+plot_row_1 <- 
+  plot_grid(
+    NULL,
+    ylab,
+    plot_data$plot[[1]] + 
+      theme(legend.position = "none",
+            plot.margin = margin(l = 0, r = 7.5, t = 15, b = 0)) + 
+      labs(subtitle = plot_titles[[1]]),
+    plot_data$plot[[2]] + 
+      theme(legend.position = "none",
+            plot.margin = margin(l = 0, r = 7.5, t = 15, b = 0)) + 
+      labs(subtitle = plot_titles[[2]]),
+    plot_data$plot[[3]] + 
+      theme(legend.position = "none",
+            plot.margin = margin(l = 0, r = 7.5, t = 15, b = 0)) + 
+      labs(subtitle = plot_titles[[3]]),
+    NULL,
+    rel_widths = c(.05, .1, rep(1, 3), .05),
+    nrow = 1)
+
+plot_row_2 <- 
+  plot_grid(
+    NULL,
+    ylab,
+    plot_data$plot[[4]] + 
+      theme(legend.position = "none",
+            plot.margin = margin(l = 0, r = 7.5, t = 15, b = 0)) + 
+      labs(subtitle = plot_titles[[4]]),
+    plot_data$plot[[5]] + 
+      theme(legend.position = "none",
+            plot.margin = margin(l = 0, r = 7.5, t = 15, b = 0)) + 
+      labs(subtitle = plot_titles[[5]]),
+    plot_data$plot[[6]] + 
+      theme(legend.position = "none",
+            plot.margin = margin(l = 0, r = 7.5, t = 15, b = 0)) + 
+      labs(subtitle = plot_titles[[6]]),
+    NULL,
+    rel_widths = c(.05, .1, rep(1, 3), .05),
+    nrow = 1)
+
+# Re-use legend and caption from earlier.
+plot <- plot_grid(legend, plot_row_1, plot_row_2, NULL, ncol = 1, rel_heights = c(.15, 1, 1, .05))
+
+ggdraw(plot)
+```
+
+Overall, cumulative or total agreement for each of the remaining policies proposals was very high across all of our experimental groups, and in each case a majority of respondents either agreed or strongly agreed with each proposal.
+
+### Contrasts
+
+```{r}
+remaining.ES.table <- 
+  posterior.sum |> 
+    # Select relvant vars and clean up Item names
+    filter(Item %in% vars) |> 
+    mutate(Item = factor(Item, levels = vars, labels = vars_pretty)) |> 
+    arrange(Item) |> 
+    select(Item, ES) |> 
+    ungroup() |> 
+    unnest(ES) |> 
+    # Round to 2 DP
+    mutate(across(where(is.double), .fns = ~sprintf("%.2f", .x))) |> 
+    mutate(ES = paste0(ES, " [", .lower, ", ", .upper, "]")) |> 
+    # trim
+    select(Item, Contrast, "Effect Size" = ES) |> 
+    # Relabel factor to describe contrast.
+    mutate(
+      Contrast = factor(
+        Contrast,
+        levels = c("Control_Brain", 
+                   "Control_Design", 
+                   "Control_Clubs", 
+                   "Clubs_Brain", 
+                   "Clubs_Design", 
+                   "Brain_Design"),
+        labels = c("Brain - Control", 
+                   "Design - Control", 
+                   "Clubs - Control", 
+                   "Brain - Clubs", 
+                   "Design - Clubs", 
+                   "Design - Brain")
+      )
+    )
+
+remaining.ES.table |> 
+  filter(str_detect(Contrast, "Control")) |>
+  pivot_wider(names_from = Contrast, values_from = `Effect Size`) |> 
+  kable(caption = "Effect Size Estimates for Contrasts with Control Group for Remaining Policy Items")
+```
+
+```{r}
+remaining.ES.table |> 
+  filter(!str_detect(Contrast, "Control")) |>
+  pivot_wider(names_from = Contrast, values_from = `Effect Size`) |> 
+  kable(caption = "Effect Size Estimates for Contrasts Between Experimetnal Groups for Remaining Policy Items")
+```
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
+
+
+# References

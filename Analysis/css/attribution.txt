@@ -1,0 +1,7 @@
+The css I used for formatting R Markdown documents is based on the tufte theme
+
+See: https://github.com/rstudio/tufte
+
+I have made numerous edits to the css for this style to adapt it to my needs/preferences. 
+
+See: tufte_DM-hack.css

@@ -1,0 +1,18 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# Drop RMarkdown output
+**/*_cache
+**/*_files
+
+# Supress plots / large model outputs:
+**/Models/Output/Plots/*.svg
+**/Models/Output/CM-Probit/*.rds
+
+# Knitting the Readme in R creates a bunch of excess stuff we don't need on the repo
+# I'll hold onto the html file, and the .md file
+README.log
+README.tex
+README.pdf

@@ -1,0 +1,66 @@
+numericID,Progress,Finished,Consent,Age,Gender,Gender_6_TEXT,Male,State,State2,LocalArea,Education,Education_7_TEXT,Employment,Income,Legal_TIME_First_Click,Legal_TIME_Last_Click,Legal_TIME_Page_Submit,Legal_TIME_Click_Count,Legal_Post,Legal_Pubs,Legal_All,NS_Fair,NS_Display,NS_Title,MEDIA,VenueInfo_Contact,VenueInfo_Hourly,ScreenMSG,Counselling_Treat,PC_TIME_First_Click,PC_TIME_Last_Click,PC_TIME_Page_Submit,PC_TIME_Click_Count,PC_Pokies,PC_All,SE_TIME_First_Click,SE_TIME_Last_Click,SE_TIME_Page_Submit,SE_TIME_Click_Count,SE_Pokies,SE_All,MaxBets,Resp_INDV,Resp_SNtwk,Resp_Design,Resp_Venues,Resp_Empl,Resp_Gvmt,Resp_Aust,Cards,Racing,SportsBetting,Dice,SkillGame,Pokies,Bingo,CasinoGames,LotteryScratch,None,Gambl_total,GamblMstDollars,GamblMstCents,PGSI_1,PGSI_2,PGSI_3,PGSI_4,PGSI_5,PGSI_6,PGSI_7,PGSI_8,PGSI_9,PGSI_total,PGSI_class,Gender_quota,Age_quota,Group,Group_N,Control,Brain,Design,Clubs,SpeedInterv,Speed1,Speed2,SpeedFinal,ArticleTime,ArticleTime2,ArticleCheck1,ArticleCheck2,TotalCheck
+An ID number to identify rows when manipulating data,Progress,Finished,Do you consent to participate in this research as it has been described?,"AgePlease write your age in years in the box provided below.
+(Enter a numeric response)",Gender - Selected Choice,Gender - I would prefer to self describe: - Text,T/F Did the participant identify as Male?,StatePlease select the state in which you live from the dropdown list below.,Victoria or NSW,"Local Area
+Which of the following best describes the local area where you live?",EducationPlease select the highest level of education you have completed from the list provided below. - Selected Choice,EducationPlease select the highest level of education you have completed from the list provided below. - Other (please specify) - Text,EmploymentAre you currently employed? Please select the appropriate response from the list provided below.,Which category describes your best approximation of your household weekly income?,Timing - First Click,Timing - Last Click,Timing - Page Submit,Timing - Click Count,"State governments should impose a limitation on the number of poker machines available in any one postcode, to prevent the clustering of machines in disadvantaged areas.","Pokies gambling should be banned in pubs, clubs and RSLs.",Pokies gambling should be banned in all venues including casinos.,Poker machines are fair,Poker machines accurately display gambling outcomes,Poker machines are likely to mislead or deceive consumers,"To what extent do you agree or disagree that governments should run mass media campaigns (advertisements on billboards, television or radio) funded by taxes on gambling revenue that provide information about gambling harm?",Display prominent warnings and contact information for gambling counselling services inside gambling venues in clearly visible locations,Prominently display accurate information about the average hourly losses of poker machines,Display pop-up messages designed to prevent harmful gambling on the poker machine screen when an individual has been using a machine for an extended period of time.,"Australians should have access to counselling and treatment for gambling addiction at no cost, funded by taxes on gambling revenue.
+To what extent you agree or disagree with this statement?",Timing - First Click,Timing - Last Click,Timing - Page Submit,Timing - Click Count,For all pokies gambling venues,For pokies gambling venues and all other gambling venues (including online operators)?,Timing - First Click,Timing - Last Click,Timing - Page Submit,Timing - Click Count,For all pokies gambling venues,For pokies gambling venues and all other gambling venues (including online operators)?,"$1 Maximum Bets for Australian Pokies
+Problem and at-risk gamblers tend to gamble with larger amounts of money than recreational or casual pokies gamblers. One harm-reduction strategy that has been proposed is to reduce the maximum amount that can be spent per spin on pokies machines.
+To what extent do you agree or disagree with the proposal that governments should limit the maximum bet on all poker machines to no more than $1 per spin?","To what extent do you agree or disagree that each of the following actors should be held responsible when negative or harmful consequences  occur as a result of poker machine use?
+
+Note that you are free to consider more than one actor responsible.
+
+
+
+The individual should be held responsible",The individual's immediate family or close friends should be held responsible,The companies or individuals who design and sell poker machines to venues should be held responsible,The companies or individuals who own and profit from casinos and pokies venues should be held responsible,"The individual employees who work in gambling venues, such as bar staff, floor managers, dealers or croupiers should be held responsible","State governments who legalise, regulate and permit gambling should be held responsible",Australian society or culture in general should be held responsible,"On how many days in the last 12 months have you gambled money in each of the following ways.
+
+
+
+If you are unsure your best guess is fine. - Played cards for money (e.g. blackjack, poker) at a casino, online, the pub... - Played cards for money (e.g. blackjack, poker) at a casino, online, the pub, in a private home or any other setting. - Please Enter a Numeric Response","On how many days in the last 12 months have you gambled money in each of the following ways.
+
+
+
+If you are unsure your best guess is fine. - Bet money on horses, dogs, or other animals. Including at the track, with a... - Bet money on horses, dogs, or other animals. Including at the track, with a bookmaker, online or on a smartphone app. - Please Enter a Numeric Response","On how many days in the last 12 months have you gambled money in each of the following ways.
+
+
+
+If you are unsure your best guess is fine. - Bet on sports or a public event (e.g. tv shows or elections). Including at... - Bet on sports or a public event (e.g. tv shows or elections). Including at the game, with a bookmaker, online or on a smartphone app. - Please Enter a Numeric Response","On how many days in the last 12 months have you gambled money in each of the following ways.
+
+
+
+If you are unsure your best guess is fine. - Played dice games for money (e.g. craps) at a casino, online, the pub, in a... - Played dice games for money (e.g. craps) at a casino, online, the pub, in a private home or any other setting. - Please Enter a Numeric Response","On how many days in the last 12 months have you gambled money in each of the following ways.
+
+
+
+If you are unsure your best guess is fine. - Shot pool, played golf, chess, or some other game of skill for money. - Please Enter a Numeric Response","On how many days in the last 12 months have you gambled money in each of the following ways.
+
+
+
+If you are unsure your best guess is fine. - Gambled money on pokies, slot machines, fixed odds betting terminals, video... - Gambled money on pokies, slot machines, fixed odds betting terminals, video lottery terminals or other gambling machines? - Please Enter a Numeric Response","On how many days in the last 12 months have you gambled money in each of the following ways.
+
+
+
+If you are unsure your best guess is fine. - Played bingo for money - Please Enter a Numeric Response","On how many days in the last 12 months have you gambled money in each of the following ways.
+
+
+
+If you are unsure your best guess is fine. - Played casino games for money (e.g roulette, wheel of fortune) at a casino... - Played casino games for money (e.g roulette, wheel of fortune) at a casino or online - Please Enter a Numeric Response","On how many days in the last 12 months have you gambled money in each of the following ways.
+
+
+
+If you are unsure your best guess is fine. - Purchased lottery or scratch cards? - Please Enter a Numeric Response","On how many days in the last 12 months have you gambled money in each of the following ways.
+
+
+
+If you are unsure your best guess is fine. - None of the above - Please Enter a Numeric Response",Total number of days gambled accross all activities. Created by summing across all gambling activities,"What is the largest amount of money you have ever gambled with in any one day? 
+Please enter your best estimate in Australian Dollars in the field below.
+If you have never gambled for money please enter ""0 Dollars 0 Cents"" - Dollars","What is the largest amount of money you have ever gambled with in any one day? 
+Please enter your best estimate in Australian Dollars in the field below.
+If you have never gambled for money please enter ""0 Dollars 0 Cents"" - Cents","The following questions ask about your behaviours related to gambling in the past 12 months. 
+Thinking back over the last 12 months... - Have you bet more than you could really afford to lose?","The following questions ask about your behaviours related to gambling in the past 12 months. 
+Thinking back over the last 12 months... - Have you needed to gamble with larger amounts of money to get the same feeling of excitement?","The following questions ask about your behaviours related to gambling in the past 12 months. 
+Thinking back over the last 12 months... - When you gambled, did you go back another day to try to win back the money you lost?","The following questions ask about your behaviours related to gambling in the past 12 months. 
+Thinking back over the last 12 months... - Have you borrowed money or sold anything to get money to gamble?","The following questions ask about your behaviours related to gambling in the past 12 months. 
+Thinking back over the last 12 months... - Have you felt that you might have a problem with gambling?","The following questions ask about your behaviours related to gambling in the past 12 months. 
+Thinking back over the last 12 months... - Has gambling caused you any health problems, including stress or anxiety?","The following questions ask about your behaviours related to gambling in the past 12 months. 
+Thinking back over the last 12 months... - Have people criticised your betting or told you that you had a gambling problem, regardless of whether or not you thought it was true?","The following questions ask about your behaviours related to gambling in the past 12 months. 
+Thinking back over the last 12 months... - Has your gambling caused any financial problems for you or your household?","The following questions ask about your behaviours related to gambling in the past 12 months. 
+Thinking back over the last 12 months... - Have you felt guilty about the way you gamble or what happens when you gamble?",Total PGSI score across all items,Total PGSI score scaled. Non-problem gambler (0). Low-risk gambler (1-2). Moderate-risk gambler: (3-7). High-Risk (8),Gender_quota,Age_quota,Group,"Experimental Group | Index Coded | 1 = Control, 2 = Brain, 3 = Design, 4 = Clubs","Control Group | Dummy Coded | 1 = Control, 0 = Other","Brain Group | Dummy Coded | 1 = Brain, 0 = Other","Design Group | Dummy Coded | 1 = Design, 0 = Other","Clubs Group | Dummy Coded | 1 = Clubs, 0 = Other",SpeedInterv,Speed1,Speed2,SpeedFinal,Time spent on first Article Page,Time spent on second Article Page for those that failed the first check or asked to see the article again,Response to first manipulation check,Response to second manipulation check,Did the respondent pass at least one manipulation check

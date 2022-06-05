@@ -1,0 +1,949 @@
+---
+title: 'Sample Demographics and Data Quality Checks'
+author: "Dan Myles"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    # code_folding: hide
+    toc: yes
+    toc_depth: 2
+    css: "../css/tufte_DM-hack.css"
+---
+
+```{=html}
+<style>
+body {
+  margin-right: 10%;
+  margin-left: 10%;  
+  text-align: justify;
+}
+</style>
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.fullwidth=TRUE, fig.align = "center", fig.width = 10, cache = TRUE) 
+```
+
+```{r include = FALSE}
+# Packages:
+
+# Functional
+here::i_am("Analysis/Quality-Checks/APPS_Quality-Attention_Bayes_2021-10.Rmd")
+library(here)      # Relative paths w R Projects
+library(datapasta) # Probably not essential - used for super powered copy/paste
+
+# The basics
+library(tidyverse)
+
+# # For plotting
+# # ggplot loaded w/ tidyverse above
+# library(cowplot)
+library(ggridges)
+ 
+# Markdown tables
+library(knitr)
+
+# # For tidy output
+library(broom)
+library(janitor) # also cross tables with tabyl
+
+# # For modelling
+library(rstan)
+library(rethinking)
+library(posterior)
+library(tidybayes)
+library(tidybayes.rethinking)
+
+# Load data
+load(file = here("Analysis", "Data", "APPS_OSF-AnalysisData_2022-02-22.RData"))
+# Load question dictionary
+load(file = here("Analysis", "Data", "APPS_OSF-Questions_2022-02-22.RData"))
+```
+
+```{r echo=FALSE}
+## Some Notes:
+# This script takes a very long time to run from scratch and I have set cache=TRUE. But if you are coming to this with the intention of reproducing the analyses be prepared for long waits. Hamiltonian Monte Carlo takes time, and some of the analysis steps involve iterating over thousands of draws from a posterior (or boot strapping). This script was not intended to be run and re-run continuously, but rather represents my notes on the analysis as I slowly built things up over time.
+
+# I would suggest knitting to html and reading through rather than the RMarkdown document
+
+# You may also note some warnings from stan/cmdstan about initial values.
+# Using cmdstan w/ rethinking seems frequently result in initial values that are outside the possible range 
+# specified by the prior. 
+# This leads to a heap of ugly warnings, but it isn't a problem so long as sampling gets started reasonably quickly.
+```
+
+
+# Data Quality Checks
+
+The Qualtrics team earmarked all of the problematic cases for us (duplicates, speeders, possible bots etc.). These have all been scrubbed. I've also conducted some cleaning of the raw data myself. There were a few little things that needed to be fixed up (e.g. respondents with age "1987" rather than "33"). In the end total sample size was `r nrow(d)`. But not major concerns there.
+
+To begin I have performed a few quick sanity checks for data quality, and to double check we didn't have any troubling chance differences in major demographics between our 4 randomised groups.
+
+# Overall Survey Completion Times
+
+All completed surveys that were returned with a completion time of less than half the median (i.e. less than 262 seconds) have been culled by the Qualtrics team. This is a standard procedure Qualtrics run to ensure data quality on all their online surveys. However, rather than use the completion time for the full survey as is usually done, I asked the Qualtrics team to run this from the first substantive question to the last substantive question, **leaving out the time spent reading the article at the beginning of the survey**. This was done so that we could safely use the same exclusion threshold for each the intervention groups as well as the control group who did not read an article (thus would have had a faster completion time).
+
+Descriptive statistics for completion time are displayed in the table and plot below. For convenience I've included both seconds and minutes. The boxplot displays the median and IQR, alongside a histogram of counts and raw data (small crosses).
+
+```{r echo = FALSE}
+# Create a summary table for completion times
+
+# This operation is wrapped in bind rows, so that the two single row outputs are combined
+bind_rows(
+  d |>
+    summarise(Min = min(Speed2, na.rm = T),
+              Max = max(Speed2, na.rm = T),
+              Median = median(Speed2, na.rm = T),
+              Mean = mean(Speed2, na.rm = T),
+              SD = sd(Speed2, na.rm = T)) |>
+    mutate(Time = "Seconds"),
+  # Same again but mutated seconds to minutes
+  d |>
+    mutate(Speed2 = Speed2 / 60) |>
+    summarise(Min = min(Speed2, na.rm = T),
+              Max = max(Speed2, na.rm = T),
+              Median = median(Speed2, na.rm = T),
+              Mean = mean(Speed2, na.rm = T),
+              SD = sd(Speed2, na.rm = T)) |>
+    mutate(Time = "Minutes")
+) |> 
+relocate(Time) |>
+kable()
+
+# Plot completion times:
+# Note the plot is truncated at 1 hour.
+# We can see from the table above that this will remove some data
+d |>
+  ggplot(mapping = aes(x = Speed2 / 60)) +
+  coord_cartesian(xlim = c(0, 60)) +
+  scale_x_continuous(breaks = seq(0, 60, by = 5)) +
+  theme_light() +
+  # Histogram
+  geom_histogram(fill = "goldenrod1",
+                 alpha = 0.5,
+                 binwidth = .5) +
+  # Observed data
+  geom_point(mapping = aes(y = -6),
+             shape = 4,
+             size = 1,
+             position = position_jitter(width = 0, height = 3)) +
+  # Box plot for IQR
+  geom_boxplot(fill = "goldenrod1",
+               width = 2) +
+  geom_vline(xintercept = 262 / 60, linetype = "dotted") +
+  annotate(geom = "text", x = (262 / 60) - 1, y = 20, label = "Speeder Cutoff @ 262 Seconds", angle = 90) +
+  labs(x = "Duration in Minutes",
+       y = "Count")
+```
+
+# Group Sizes
+
+Following these data cleaning measures we were left with a sample of `r nrow(d)` participants. Group sizes (n) were relatively similar after randomisation and data cleaning, and did not appear to be distorted by data cleaning measures. I performed a Bayesian multinomial regression to estimate the probability of being assigned to each group in the final data set.
+
+```{r include=FALSE, cache = TRUE}
+dat_list <- list(group = as.numeric(d$Group), N = nrow(d), K = 4)
+
+# Here is the stan model code for this analysis
+modelCode <- c("
+data{
+  int N; // number of observations
+  int K; // number of outcome values
+  int group[N]; // outcome
+}
+parameters{
+  vector [K-1] a; // intercept
+}
+model{
+  vector[K] p;
+  vector[K] s;
+  a ~ normal(0, 0.5);
+  s[1] = 0; // pivot on control
+  s[2] = a[1];
+  s[3] = a[2];
+  s[4] = a[3];
+  p = softmax(s);
+  group ~ categorical(p);
+}
+")
+
+# Run this model using rstan
+m.Group <- stan(model_code = modelCode, data = dat_list, chains = 8, cores = 8, iter = 5e3)
+
+# Feb 2022 while re-producing these scripts prior to uploading them to OSF I stumbled into an annoying
+# bug with rethinking + cmdstan + tidybayes::spread_draws()
+# See: https://github.com/mjskay/tidybayes/issues/132
+
+# As a work around I'm just drawing the whole posterior using tidy_draws() and then using pivot_longer.
+
+# Posterior draws for the intercept by group
+post <- tidy_draws(m.Group)
+
+# We only need the intercept for this model
+post <- post |> select(.draw, a.1:a.3)
+
+# Add Control/pivot
+post$Group1 <- 0
+
+# Move Group one to position 1
+post <- 
+  post |>
+    relocate(Group1, .before = a.1)
+
+# Compute probability values. 
+# softmax() function is from the rethinking package.
+post <- 
+  post |>
+    mutate(p = purrr::pmap(.l = list(Group1, a.1, a.2, a.3),
+                           .f = softmax)) |>
+    unnest_wider(p, names_sep = "_")
+
+# Clean up the names and pivot long
+post <- 
+  post |>
+    select(contains("p_")) |>
+    pivot_longer(cols = everything(), values_to = "p", names_to = "Group", names_prefix = "p_") |>
+    # Factor group with text labels
+    mutate(Group = factor(Group, labels = levels(d$Group)))
+
+# Comupte posterior summaries
+postSummary <- 
+  post |>
+    group_by(Group) |>
+    point_interval(p, .interval = hdi)
+```
+
+```{r echo=FALSE}
+# Print summary table
+d |> 
+  count(Group) |> 
+  mutate("Observed Prop." = n/sum(n) * 100) |>
+  left_join(postSummary) |>
+  kable(digits = 3, caption = "Group Assignment")
+```
+
+No obvious cause for alarm there. All posterior intervals overlapped p = 0.25, the value we would expect if groups were distributed symmetrically. A few more participants in the control group. This could be due to the fact that this condition was less onerous (no reading), but any such differences were small, and not reliable enough to worry about.
+
+Here are the posterior intervals on a plot:
+
+```{r echo=FALSE}
+ggplot() +
+  theme_bw() +
+  geom_density_ridges(data = post,
+                      mapping = aes(x = p, y = Group),
+                      fill = "hotpink1",
+                      scale = 1.25,
+                      alpha = .25) +
+  geom_linerange(data = post |> group_by(Group) |> point_interval(p, .width = .67, .interval = hdi), 
+                 mapping = aes(xmin = .lower, xmax = .upper, y = Group),
+                 size = 1.5) +
+  geom_pointrange(data = post |> group_by(Group) |> point_interval(p, .width = .95, .interval = hdi), 
+                  mapping = aes(x = p, xmin = .lower, xmax = .upper, y = Group),
+                  shape = "|",
+                  fatten = 9) +
+  geom_vline(xintercept = c(.25), linetype = "dotted") +
+  scale_y_discrete(expand = expansion(add = c(0.25, 1.35))) +
+  scale_x_continuous(breaks = seq(from = .15, to = .35, by = .01)) +
+  labs(x = "Estimated Probability of Group Assignment\n",
+       caption = "Error Bars Display 67% and 95% Highest Posterior Density Interval\nPoint estimate is the median\n Zero point marked with dotted line")
+```
+
+# Demographics
+
+## Age and Gender
+
+```{r echo = FALSE}
+dat_list <- list(Group = as.integer(d$Group),
+                 Male = ifelse(d$Gender == "Female", 0, 1), 
+                 Age = d$Age)
+```
+
+The sample was "soft" stratified to approximately balance the number of participants identifying as Male (`r sum(d$Gender == "Male")`) and Female (`r sum(d$Gender == "Female")`) against population data. Of the `r sum(d$Gender == "I would prefer to self describe:")` remaining participants one self described as "non-binary", and the other did not submit a text response.
+
+Participants were aged between `r min(d$Age)` and `r max(d$Age)`. To ensure a diverse range of age groups were recruited participants were also stratified to each of the age groups listed in the table below during sampling.
+
+```{r echo=FALSE}
+d |>
+  count(Age_quota) |>
+  rename("Age Quotas" = Age_quota) |>
+  kable()
+
+d |> 
+  filter(Gender != "I would prefer to self describe:") |>
+ggplot() +
+  theme_light() +
+  geom_histogram(mapping = aes(x = Age, fill = Gender), 
+                 binwidth = 4,
+                 position = position_dodge()) +
+  scale_x_continuous(breaks = seq(from = 18, to = 90, by = 4)) +
+  scale_fill_manual(values = c("sienna1", "skyblue3"))
+```
+
+The women in our were younger on average (mean age = `r round(mean(d$Age[d$Gender == "Female"]), 2)`) than the men (mean age = `r round(mean(d$Age[d$Gender == "Male"]), 2)`). 
+
+A simple logistic regression suggested that Age predicted Gender, such that older participants in this sample were more likely to have identified as Male. If we wanted to investigate either age or gender as covariates, it might be best to consider both.
+
+```{r results='hide'}
+# This time modelling using the rethinking package:
+m.GenderAge <- 
+  ulam(
+    alist(
+      Male ~ dbern(p),
+      logit(p) <- alpha + b*Age,
+      # I'm using some fairly mild default priors
+      # See McElreath's Statistical Rethinking Chapter 11 for an intro
+      alpha ~ dnorm(0, 1.5),
+      b ~ dnorm(0, 1)
+    ), data = dat_list, cores = 8, chains = 8, iter = 1750, warmup = 500
+  )
+
+## Errors about initial values aren't something to worry about in this instance
+```
+
+```{r}
+gather_draws(m.GenderAge, alpha, b) |> 
+  median_hdi() |> 
+  kable(digits = 3, caption = "Logistic Regression: Gender by Age (LogOdds)")
+```
+
+### Let's check the randomisation as a bit of a warm-up
+
+Self-reported gender was approximately evenly distribution across groups:
+
+```{r results='hide'}
+m.GenderGroup <- 
+  ulam(
+    alist(
+      Male ~ dbern(p),
+      logit(p) <- alpha[Group],
+      alpha[Group] ~ dnorm(0, 1.5)
+    ), data = dat_list, cores = 8, chains = 8, iter = 1750, warmup = 500
+  )
+```
+
+```{r}
+d |> 
+  count(Group, Gender) |> 
+  group_by(Group) |> 
+  mutate(observed.prop = n/sum(n)) |> 
+  filter(Gender == "Male") -> obs
+
+post <- tidy_draws(m.GenderGroup)
+
+# Long form
+post <- 
+  post |> 
+    select(.draw, alpha.1:alpha.4) |> 
+    pivot_longer(cols = alpha.1:alpha.4, names_to = "k", names_prefix = "alpha.", values_to = "alpha")
+
+# Produce summary table
+post |> 
+  # Rename groups
+  mutate(Group = factor(k, levels = 1:4, labels = levels(d$Group))) |> 
+  # Compute probabilities (logistic transform)
+  mutate(p = plogis(alpha)) |> 
+  group_by(Group) |> 
+  median_hdi(p) -> post.sum
+
+left_join(obs, post.sum) |> 
+  select(Group, n, observed.prop, p, .lower, .upper) |> 
+  kable(digits = 3, caption = "Oberseved Proportions and Probability Estimates for Identifying as Male, by Group")
+```
+
+```{r}
+post |> 
+  mutate(Group = factor(k, levels = 1:4, labels = levels(d$Group))) |> 
+  mutate(p = plogis(alpha)) |> 
+  ungroup() |> 
+  select(.draw, Group, p) |> 
+  pivot_wider(names_from = Group, values_from = p) |> 
+  mutate(across(Control:Clubs, ~.x / Control)) |> 
+  pivot_longer(Control:Clubs, names_to = "Group", values_to = "OR") |> 
+  mutate(Group = factor(Group, levels(d$Group))) |> 
+  filter(Group != "Control") |> 
+  group_by(Group) |> 
+  median_hdi() |> 
+  kable(digits = 2, caption = "OR vs Control for Male ID by Group")
+```
+
+Mean age did not differ substantially between experimental groups:
+
+```{r echo=FALSE, warning=FALSE, results = 'hide'}
+d |>
+  group_by(Group) |> 
+  summarise(mean = mean(Age),
+            sd   = sd(Age),
+            min = min(Age),
+            max = max(Age)) |>
+  kable(caption = "Mean Age by Group", digits = 2)
+
+# Parameterise this as diff from control (b* Design, b*Clubs etc)
+
+dat_list <- list(Control = d$Control, Brain = d$Brain, Design = d$Design, Clubs = d$Clubs, Age = d$Age)
+
+m.AgeGroup <- ulam(
+  alist(
+    Age ~ dnorm(mu, sigma),
+    mu <- alpha + bBr*Brain + bD*Design + bCl*Clubs,
+    alpha ~ dnorm(47, 14.5),
+    c(bBr, bD, bCl) ~ dnorm(0, 4),
+    sigma ~ dexp(1)
+  ), data = dat_list, cores = 8, chains = 8, iter = 1750, warmup = 500
+)
+
+precis(m.AgeGroup)
+```
+
+```{r echo=FALSE, warning=FALSE}
+post <- tidy_draws(m.AgeGroup, alpha, bBr, bD, bCl)
+
+post |> 
+  select(alpha, bBr, bD, bCl) |> 
+  pivot_longer(everything()) |> 
+  select(name, value) |> 
+  group_by(name) |> 
+  median_hdi() |> 
+  kable(digits = 2, caption = "Model Parameters for Age by Group")
+```
+
+## State
+
+Some slight differences in State: 
+
+```{r, results='hide', warning=FALSE}
+# Predict NSW by Group ---------------------------------------------------------------------------
+dat_list <- list(Group = as.integer(d$Group), NSW = ifelse(d$State2 == "New South Wales", TRUE, FALSE))
+
+m.State.Group <- ulam(
+  alist(
+    NSW ~ bernoulli(p),
+    logit(p) <- alpha[Group],
+    alpha[Group] ~ normal(0, 1.5)
+  ), data = dat_list, cores = 8, chains = 8, iter = 1750, warmup = 500
+)
+
+d |> 
+  count(Group, State2) |> 
+  group_by(Group) |> 
+  mutate(observed.prop = n/sum(n)) |> 
+  filter(State2 == "New South Wales") -> obs
+```
+
+```{r}
+post <- tidy_draws(m.State.Group)
+
+# Long form
+post <- 
+  post |> 
+    select(.draw, alpha.1:alpha.4) |> 
+    pivot_longer(cols = alpha.1:alpha.4, names_to = "Group", names_prefix = "alpha.", values_to = "alpha")
+
+post |> 
+  mutate(Group = factor(Group, levels = 1:4, labels = levels(d$Group)), 
+         p = plogis(alpha)) |> 
+  group_by(Group) |> 
+  median_hdi(p) -> post.sum
+
+left_join(obs, post.sum) |> 
+  select(Group, n, observed.prop, p, .lower, .upper) |> 
+  kable(digits = 3, caption = "Oberseved Proportions and Probability Estimates for NSW Location, by Group")
+```
+
+## Socio-Economic
+
+Participants were recruited from both NSW (`r sum(d$State == "New South Wales")`) and Victoria (`r sum(d$State == "Victoria")`). We collected some simple demographic information about our sample, as displayed below:
+
+```{r echo=FALSE}
+d |> 
+  count(LocalArea) |>
+  rename("Local Area" = LocalArea) |>
+  mutate(Percent =  n/sum(n) * 100) |>
+  mutate(Percent =  round(Percent, 1)) |>
+  kable()
+
+d |> 
+  count(Education) |>
+  mutate(Percent =  n/sum(n) * 100) |>
+  mutate(Percent =  round(Percent, 1)) |>
+  kable()
+
+d |> 
+  count(Employment) |>
+  mutate(Percent =  n/sum(n) * 100) |>
+  mutate(Percent =  round(Percent, 1)) |>
+  kable()
+  
+d |> 
+  count(Income) |>
+  mutate(p = n/sum(n) * 100) |>
+  mutate(Colour = Income == "Prefer not to say") |> 
+ggplot(mapping = aes(x = Income, y = p, fill = Colour)) +
+  theme_light() +
+  geom_col(show.legend = F) +
+  scale_fill_manual(values = c("deepskyblue3", "firebrick1")) +
+  labs(title = "Weekly Income",
+       y = "Percent of Total Sample") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+# Gambling Involvement
+
+## PGSI
+
+Our sample included a number of individuals who gambled regularly, and a number who reported symptoms indicative of varying risk of gambling related harm. Again the distribution of PGSI symptoms did not differ significantly between experimental groups.
+
+```{r echo=FALSE}
+tabyl(dat = d, var1 = Group, var2 = PGSI_class) |>
+  adorn_totals(name = "**Total**") |>
+  kable()
+```
+
+```{r echo=FALSE}
+d |> 
+  tabyl(Group, PGSI_class) |> 
+  chisq.test() |> 
+  tidy() |>
+  relocate(method, parameter) |>
+  rename("Test" = "method",
+         "Chi Squared" = statistic,
+         "df" = parameter) |>
+  kable(digits = 2)
+```
+
+## Gambling Involvement
+
+Likewise the number of individuals who had gambled at least once in the prior 12 months was (approximately) evenly distributed across experimental groups:
+
+```{r echo = FALSE}
+tabyl(dat = d, var1 = Group, var2 = None) |>
+  adorn_totals(name = "**Total**") |>
+  rename("No Gambling" = `FALSE`,
+         "Gambling"    = `TRUE`) |>
+  kable()
+```
+
+```{r echo = FALSE}
+d |> 
+  tabyl(Group, None) |> 
+  chisq.test() |> 
+  tidy() |>
+  relocate(method, parameter) |>
+  rename("Test" = "method",
+         "Chi Squared" = statistic,
+         "df" = parameter) |>
+  kable(digits = 2)
+```
+
+## Gambling Frequency
+
+There were some issues with data quality in the responses to gambling frequency. For instance it seems a number of participants misunderstood the question time window: **"On how many days in the last 12 months have you gambled money in each of the following ways."**
+
+The 20 highest overall number below. Given there are only 365 days in a year some of these responses are clearly troubling. It's possible that some individuals interpreted this as the total number of bets (such as spins on a poker machine, rather than the total number of days where betting occurred at least once). It's also possible that these participants were responding at random, made keystroke errors or were satisficing.
+
+```{r echo = FALSE}
+this <- 
+  d |>
+    filter(Gambl_total > 100) |>
+    arrange(desc(Gambl_total)) |>
+    select(Cards:None)
+
+kable(this[1:20, ])
+```
+
+At this stage I'm not sure we plan to use this information, but good to be aware of.
+
+## Greatest Daily Expedidature
+
+We also asked participants: "What is the largest amount of money you have ever gambled with in any one day?". Unsurprisingly, responses to this questions were highly skewed. The highest reported lifetime daily expenditure was \$1 million. I've drawn two plots below, capped at \$2000 (200 bins) and \$100 (101 bins), to display the spread:
+
+```{r echo = FALSE}
+d |>
+  filter(!is.na(GamblMstDollars)) |>
+  filter(GamblMstDollars <= 2000) |>
+  ggplot() +
+  theme_bw() +
+  geom_histogram(mapping = aes(x = GamblMstDollars), binwidth = 10) +
+  scale_x_continuous(breaks = seq(from = 0, to = 2000, by = 250)) +
+  labs(x = "Dollars Gambled",
+       y = "Count")
+
+d |>
+  filter(!is.na(GamblMstDollars)) |>
+  filter(GamblMstDollars <= 100) |>
+  ggplot() +
+  theme_bw() +
+  geom_histogram(mapping = aes(x = GamblMstDollars), bins = 101) +
+  scale_x_continuous(breaks = seq(from = 0, to = 100, by = 5))  +
+  labs(x = "Dollars Gambled",
+       y = "Count")
+```
+
+There's also a fairly classic preference for factors of 5. Given that distribution, and how skewed the means are it's probably not a good idea to run parametric tests using these data. Again, I've no direct plans to use this information at this stage.
+
+```{r echo = FALSE}
+d |> 
+  group_by(Group) |>
+  summarise(median = median(GamblMstDollars, na.rm = T),
+            mean = mean(GamblMstDollars, na.rm = T),
+            sd = sd(GamblMstDollars, na.rm = T)) |>
+  kable()
+```
+
+# Article Reading Time
+
+Participants in each group appeared to spend about the same amount of time reading in each condition. There *is* however a lot of variation in reading time overall, even if this doesn't vary by group, it certainly does by participant.
+
+Note that we set a timer on the page so participants could not press next until at least 45 seconds had passed. We also had 19 missing values on this measure.
+
+```{r echo=FALSE, warning = FALSE, fig.height=10}
+d |>
+    filter(Group != "Control" & !is.na(SpeedInterv)) |>
+    mutate(SpeedInterv = SpeedInterv/60) |>
+    ggplot() +
+    theme_bw() +  
+    coord_cartesian(xlim = c(.75, 10)) +
+    scale_x_continuous(breaks = seq(1, 10, by = 1)) +
+    facet_wrap(~Group, nrow = 3) +
+    geom_histogram(mapping = aes(x = SpeedInterv, group = Group, fill = Group),
+                   alpha = .5,
+                   binwidth = .2) +
+    geom_boxplot(mapping = aes(x = SpeedInterv, group = Group, fill = Group),
+                 width = 0.75, 
+                 show.legend = F) +
+    geom_point(mapping = aes(x = SpeedInterv, y = -2, group = Group, fill = Group),
+               show.legend = F,
+               shape = "|",
+               size = 2) +
+    scale_fill_manual(values = c("goldenrod1", "skyblue1", "firebrick1"),
+                      guide = guide_legend(override.aes = list(alpha = 1) ) ) +
+    labs(x = "Total Article Reading Time in Minutes",
+         y = "Count",
+         caption = "Minimum Reading Time Set to 45 Seconds") +
+    theme(legend.position = "none")
+```
+
+```{r echo=FALSE, warning = FALSE}
+d |>
+  group_by(Group) |>
+  filter(Group != "Control") |>
+  summarise(Min = min(SpeedInterv, na.rm = T),
+            `5%` = quantile(SpeedInterv, probs = .05, na.rm = T),
+            `25%` = quantile(SpeedInterv, probs = .25, na.rm = T),
+            Median = median(SpeedInterv, na.rm = T),
+            `75%` = quantile(SpeedInterv, probs = .75, na.rm = T),
+            `95%` = quantile(SpeedInterv, probs = .95, na.rm = T),
+            Max = max(SpeedInterv, na.rm = T),
+            Mean = mean(SpeedInterv, na.rm = T),
+            SD = sd(SpeedInterv, na.rm = T)) |>
+  kable(digits = 1)
+```
+
+Across each of the above quantiles reading times were reasonably similar. Although, the median reading time in the Design group was slightly higher than the remaining two groups. Notably, there were more extreme observations (> 1000 seconds) out in the tail for the Brain and Clubs conditions:
+
+```{r}
+d |>
+  group_by(Group) |>
+  filter(Group != "Control" & !is.na(SpeedInterv)) |>
+  count(SpeedInterv > 600, Group) |> 
+  kable()
+```
+
+There is also some clear positive skew on each of these data distributions. This is unsurprising. We are measuring time. Measures of time commonly display this kind of positive skew. The measure is also bounded above 45 seconds (we set a minimum reading time on the article page for all condition). A standard regression isn't going to cut it here. So I'm going to want to transform these data. 
+
+I might also need to windsorise some of the more extreme values. I could probably make a case for listwise deletion of these cases, 4000 seconds is over an hour. It seems unlikely that someone was that interested in the the content of the article. More likely they got up to do something else. But they may have nonetheless paid attention, and I don't like deleting data without a clear indication that there was something clearly wrong with the cases.
+
+Taking a quick look the failure rate on our comprehension check was about the same among these more extreme cases, as it was in the data set overall.
+
+```{r}
+# 10 minutes
+d |>
+  group_by(Group, TotalCheck) |>
+  filter(Group != "Control" & !is.na(SpeedInterv)) |>
+  count(SpeedInterv > 600) |> 
+  filter(`SpeedInterv > 600` == TRUE) |> 
+  group_by(Group) |>
+  mutate(prop = n/sum(n)) |> 
+  kable()
+
+# 7 minutes
+d |>
+  group_by(Group, TotalCheck) |>
+  filter(Group != "Control" & !is.na(SpeedInterv)) |>
+  count(SpeedInterv > 420) |> 
+  filter(`SpeedInterv > 420` == TRUE) |> 
+  group_by(Group) |>
+  mutate(prop = n/sum(n)) |> 
+  kable()
+```
+
+I'll hold onto these cases rather than dropping them from the primary analysis.
+
+## Data Transform 
+
+As I mentioned I'll transform these data prior to analysis to account for the positive skew. A log normal is likely a much better assumption than a normal. I will also standardise the data following the log transform. This will make life easier when it comes to setting priors. Finally, given that we know that data must be larger than 45 seconds, I'm going to shift the data back by 45 seconds, so that the measure represents time from the limit expiring.
+
+```{r echo=FALSE, warning = FALSE, results='hide'}
+# Control group did not read an article
+d2 <- d |> filter(Group != "Control")
+
+d2 |> 
+  select(Group, SpeedInterv) |> 
+  filter(!is.na(SpeedInterv)) |> 
+  mutate(G = as.integer(Group) - 1L,
+         RT = SpeedInterv - 45,
+         RT_lg = log(RT), # log transform
+         RT_z  = standardize(RT_lg)) |> # Standardized log transform
+  select(Group, G, RT, RT_lg, RT_z) -> d2
+
+# I'll fit with rethinking. Rethinking likes data lists.
+dat_list <- as.list(d2)
+```
+
+## Log transform
+
+```{r results='hide', warning=FALSE}
+# I've switched off warnings and results output for this stan code.
+m.RTZ <- ulam(
+  alist(
+    RT_z ~ dnorm(mu, sigma),
+    mu <- alpha[G],
+    alpha[G] ~ dnorm(0, 1), # Data have been standardised, which makes setting our prior fairly easy
+    # Potential Unequal Variance (Equal variance not assumed).
+    sigma <- s[G],
+    s[G] ~ dexp(1)
+  ), 
+  data = dat_list,
+  cores = 8, chains = 8, iter = 2750, warmup = 1000, log_lik = TRUE,
+)
+```
+
+```{r}
+# Posterior draws
+post <- tidy_draws(m.RTZ) |> select(.draw, alpha.1:s.3)
+
+# Long form
+post <- 
+  post |> 
+    pivot_longer(alpha.1:s.3, names_to = ".variable", values_to = ".value") |> 
+    # Some regex to recover group and variable types
+    mutate(
+      Group = str_extract(string = .variable, pattern = "(?<=\\.)[:digit:]"),
+      .variable = str_extract(string = .variable, pattern = "[:alpha:]*(?=\\.)"))
+
+post |> 
+  group_by(Group, .variable) |> 
+  median_hdi(.value) |> 
+  arrange(.variable) |> 
+  mutate(Group = factor(Group, labels = c("Brain", "Design", "Clubs")),
+         .variable = factor(.variable, levels = c("alpha", "s"), labels = c("Mean", "SD"))) |> 
+  rename(param = .variable) |> 
+  kable(digits = 2, caption = "Analysis of Mean Reading Time by Group")
+```
+
+Clearly no difference on the standardised scale for mean reading time by group. A little less variation in the Design condition, though our posterior interval still includes near null values:
+
+```{r}
+post |> 
+  filter(.variable == "s") |> 
+  mutate(Group = factor(Group, levels = 1:3, labels = c("Brain", "Design", "Clubs"))) |> 
+  pivot_wider(names_from = "Group", values_from = ".value") |> 
+  mutate(across(c("Brain", "Clubs"), .fns = ~(.x - Design))) |> 
+  ungroup() |> 
+  select(.draw, Brain, Clubs) |> 
+  pivot_longer(cols = Brain:Clubs) |> 
+  group_by(name) |> 
+  median_hdi() |> 
+  kable(digits = 2, caption = "Difference in SD vs. Design Group")
+```
+
+## Posterior predictive check
+
+A simple check of each of these sensitivity analyses is the posterior predictive check, which compares predictions from each model to the observed data. I've done this below:
+
+```{r post_predict}
+# I'll write a function to get this done
+get_ppc <- function(model, thisMany = 100) {
+  d2 |> count(Group) -> ppc
+  
+  posterior <- extract.samples(model)
+  
+  ppc$G  <- 1:3
+  
+  ppc <- 
+    ppc |> 
+    mutate(
+      sample = list(1:thisMany),
+      alpha = purrr::map(
+        .x = G,
+        .f = function(.x) {
+          posterior$alpha[1:thisMany, .x]
+        }
+      ),
+      s = purrr::map(
+        .x = G,
+        .f = function(.x) {
+          posterior$s[1:thisMany, .x]
+        })) |> 
+    unnest(everything()) |> 
+    mutate(
+      RT = purrr::pmap(
+        .l = list(n = n, mean = alpha, sd = s),
+        .f = rnorm
+      )
+    )
+}
+
+# Posterior predictive check:
+ppc_Z <- get_ppc(m.RTZ)
+
+back_to_sec <- function(x) {
+  x <- ((x * sd(dat_list$RT_lg)) + mean(dat_list$RT_lg))
+  x <- exp(x)
+  return(x)
+}
+
+ppc_Z <- 
+  ppc_Z |> 
+  select(Group, n, G, sample, RT) |> 
+  unnest(sample) |> 
+  unnest(RT) |> 
+  mutate(RT = back_to_sec(RT))
+```
+
+```{r plots, fig.width=10, fig.height = 13.3}
+# Log transform ---------
+ggplot() +
+  theme_bw() +
+  coord_cartesian(xlim = c(0, 1200)) +
+  facet_wrap(~Group, nrow = 3) +
+  geom_density(data = ppc_Z,
+               mapping = aes(x = RT, group = sample),
+               colour=alpha("hotpink1", 0.2)) +
+  geom_density(data = d2,
+               mapping = aes(x = RT, group = Group),
+               colour = "black") +
+  labs(subtitle = "Log-Transform and Standardised",
+       caption = "Density plot of observed data displayed in black
+                \nDenisty plots over predicted data in hot pink ;)",
+       y = "Density")
+```
+
+Some nice looking fits.
+
+To wrap up I'll summarise a posterior check from the sample using the full set of posterior draws from the log-transform model, on the measurement scale:
+
+```{r}
+ppc_Z <- get_ppc(model = m.RTZ, thisMany = 1e4)
+
+ppc_Z <- ppc_Z |> unnest(RT)
+
+ppc_Z <- 
+  ppc_Z |> 
+    mutate(RT = back_to_sec(RT)) |> 
+    group_by(Group, sample) |> 
+    summarise(
+      ".05" = quantile(RT, probs = c(.05)),
+      ".25" = quantile(RT, probs = c(.25)),
+      ".5" = quantile(RT, probs = c(.5)),
+      ".75" = quantile(RT, probs = c(.75)),
+      ".95" = quantile(RT, probs = c(.95)))
+ppc_Z <- 
+  ppc_Z |> 
+    ungroup() |> 
+    group_by(Group) |> 
+    summarise(across(!sample, .fns = list)) |> 
+    mutate(across(!Group, .fns = ~purrr::map(.x = .x, median_hdi)))
+
+ppc_Z <- 
+  ppc_Z |>   
+  mutate(across(!Group, .fns = ~purrr::map_chr(
+    .x = .x, 
+    .f = function(x) {
+      x |> 
+        select(y:ymax) |> 
+        mutate(across(everything(), .fns = ~round(.x, 2))) |> 
+        summarise(Est = paste0(y, " [",  ymin, ", ", ymax, "]")) |> 
+        pull(Est)
+    })))
+
+ppc_Z |> 
+  pivot_longer(cols = !Group, names_to = "Quantile") |> 
+  pivot_wider(names_from = Group, values_from = value) |> 
+  kable(digits = 2, caption = "Quantile summary of posterior distribution")
+```
+
+Overall I don't see any reason to be concerned with these observations, any differences in reading times were small or negligible. Fewer extreme observations in the Design group. Windsorizing extreme scores may address this. But this is not a central concern, so long as we have good evidence that each group appeared to spend enough time reading the article.
+
+# Comprehension Check
+
+```{r include = FALSE}
+# Percentage correct
+correct <- round(sum(d$ArticleCheck1 == "Correct")/sum(d$Group != "Control") * 100, 2)
+# Percentage who asked to see the article again
+again <- round(sum(d$ArticleCheck1 == "Again")/sum(d$Group != "Control") * 100, 2)
+
+# percentage incorrect on q1
+incorrect <- 
+d |> 
+  count(ArticleCheck1) |> 
+  filter(ArticleCheck1 != "Again" & ArticleCheck1 != "Control" & ArticleCheck1 != "Correct") |>
+  pull(n) |>
+  sum()
+
+n <- sum(d$Group != "Control")
+
+incorrect <- round((incorrect / n) * 100, 2)
+
+# Total who submitted a correct response to q1 or q2:
+total <- round((sum(d$TotalCheck == "Correct") / n) * 100, 2)
+
+```
+
+I've saved the most important check for last. Following the intervention article participants were asked to respond to a simple comprehension check. This check asked participants to identify which of four sentences best described the article they had viewed. Each group were presented with the same 3 false answers, in addition to a unique question that correctly represented the article that had been viewed. `r correct` percent of participants responded correctly to the first check, `r again` % asked to view the questions again, and `r incorrect`% answered the question incorrectly. Those that failed or requested to view the article again were again shown the article page followed by another manipulation check question, that differed from the first. Overall `r total` % of respondents answered the first or second manipulation check correctly, representing a high level of comprehension and attention.
+
+```{r, results='hide'}
+d  |> 
+  filter(Group != "Control") |>
+  mutate(Group = factor(Group, levels = c("Brain", "Design", "Clubs"))) |> 
+  select(Group, TotalCheck) |> 
+  mutate(TotalCheck = TotalCheck == "Correct") -> dat_list
+
+m.Attention <- ulam(
+  alist(
+    TotalCheck ~ bernoulli(p),
+    logit(p) <- a[Group],
+    a[Group] ~ dnorm(0, 1.5)
+  ), data = dat_list, cores = 8, chains = 8, iter = 2750, warmup = 1000)  
+
+post <- tidy_draws(m.Attention) |> select(.draw, a.1:a.3)
+
+# Compute probs
+post <- post |> mutate(across(a.1:a.3, .fns = plogis))
+```
+
+```{r}
+post <- 
+  post |> 
+    pivot_longer(cols = a.1:a.3, names_to = "Group", values_to = "p") |> 
+    mutate(Group = str_extract(Group, pattern = "(?!>\\.)[:digit:]"),
+           Group = factor(Group, labels = c("Design", "Brain", "Clubs")))
+
+post |> 
+  group_by(Group) |> 
+  median_hdi(p) |> 
+  kable(digits = 2)
+```
+
+The success rate on these measures is more or less exactly the same between experimental groups.
+
+# References
+
+McElreath, R. (2020). Statistical rethinking: A Bayesian course with examples in R and Stan (2nd ed.). Taylor and Francis, CRC Press.
+
+Vehtari, A., Gelman, A., & Gabry, J. (2017). Practical Bayesian model evaluation using leave-one-out cross-validation and WAIC. Statistics and computing, 27(5), 1413-1432.
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
+

@@ -1,0 +1,29 @@
+[TITLE]
+
+<h1>Hooked: How pokies are designed to be addictive</h1>
+
+[TEXT]
+
+<p>Australians gamble and lose more than any other nation on Earth, an estimated $24 billion every year. More than $15 billion of these loses occur on poker machines alone. But why are the pokies so attractive? And why do people spend so much on them?</p>
+<p>Poker machines have been carefully engineered for over a century to keep gamblers hooked. These seemingly simple devices have been perfected by an army of engineers, programmers, mathematicians and graphic artists, yielding ever more inventive methods to encourage punters to spend more and keep gambling. Including a number of sleight of hand tactics to enhance gambling’s addictive potential.</p>
+<p>This has prompted gambling researchers and mental health professionals to sound the alarm that this design feature contributes to the addictive power of poker machines.</p>
+<p>The anthropologist Natasha Schüll has spent decades studying the rise of slot machine gambling. In her book <em>Addiction by Design</em>, Schüll documents the efforts by the gambling industry to deliberately design pokies that keep people gambling as long as possible. </p>
+<p>How long someone gambles, or what insiders call ‘time on device’, is the key to maximising revenue. The longer someone gambles determines how much the house takes in overall.</p>
+<p>As one gambling industry insider explained to Schüll, <em>“the key is duration of play. I want to keep you there as long as humanly possible, that’s the whole trick”</em>. </p>
+<p>One of the most insidious tactics for keeping players glued to their seats emerged with modern poker machines that allow the user to place simultaneous bets across multiple lines.</p>
+<p>Betting on multiple lines increases the chance that a win will be displayed somewhere on the screen, creating a vastly more exciting experience and an urge to keep gambling, especially in problem gamblers. </p>
+<p>But each line played also increases the total cost of the bet so that the punter will still lose about the same amount of money overall, regardless of whether they chose to gamble on 25 lines or a single line.</p>
+<p>Multiline betting also enables what Professor Mike Dixon at the University of Waterloo in Canada calls <em>“losses disguised as wins”</em>. </p>
+<p>Say you bet 10 cents per line across 20 lines for a total bet of $2.00 (20 lines x $0.10 = $2.00). The reels spin and stop one at a time to reveal a small win of $1.50. The machine flashes with lights and sounds to indicate that you have won. But in this case, you have actually <em>lost</em> $0.50.</p>
+
+[IMAGE HERE]
+
+<div class = 'image'><img src = "./Images/APPS_LDWs.png" width = 100%/></div>
+<div class = 'image-caption'>An example of a loss disguised as a win. Although the machine has celebrated a “win” of $1.50 on the three starfish, the total bet was $2.00, making for an overall loss of $0.50</div>
+
+<p>These "losses disguised as wins" can occur as often as true wins, which means they could drastically increase the addictive potential of pokies gambling. Professor Dixon and his colleagues have found that many gamblers appear to mistakenly view these losses as real wins, and that physiological markers such as heartrate or perspiration indicate the same level of excitement that occurs following a small win.</p>
+<p>Schüll’s interviews with the engineers who designed these machines make it clear that losses disguised as wins are a deliberate design feature to maximise time spent gambling and therefore industry profits. Perhaps the most blatant example is an interview with Randy Adams of Anchor Gaming, who explains the feature to Schüll:</p>
+<p><em>“The perception is that you’re winning all the time, when you’re really not— you’re putting 25 in and winning 15 back, 45 in and 30 back, over and over.”</em></p>
+<p>The evidence clearly suggests that pokies are not only addictive, but that they have been intentionally designed to be addictive in pursuit of enormous private profits. Those revenues are larger here in Australia than anywhere else in the world. Given what we now know — it might be time to kick the habit.</p>
+
+[END]

@@ -1,0 +1,30 @@
+[TITLE]
+
+<h1>Hooked: How the brain gets addicted to gambling</h1>
+
+[TEXT]
+
+<p>Australians gamble and lose more than any other nation on Earth, an estimated $24 billion every year. More than $15 billion of these loses occur on poker machines alone. But why are the pokies so attractive? And why do people spend so much on them?</p>
+<p>Poker machine gambling rewires evolutionarily ancient brain circuits to keep gamblers hooked. Neuroscience shows how these seemingly simple devices stimulate the release of dopamine, a brain chemical that causes drug addiction. By flushing the brain with dopamine, pokies gambling, like cocaine and other addictive drugs, hijack these circuits to keep people gambling.</p>
+<p>This has prompted gambling researchers and mental health professionals to sound the alarm that pokies gambling can be <em>biologically</em> addictive.</p>
+<p>Gambling disorder shares many symptoms with drug addictions. These include cravings, difficulties cutting back or stopping, and tolerance—the need to increase the intensity of gambling to feel the same rush, either by increasing the stake or the number of bets. This family resemblance is not new, but until recently there was no biological explanation for how gambling could be addictive.</p>
+<p>Scientists are now rapidly filling in these details. Advances in modern genetics have illuminated how genetic vulnerabilities related to impulsive behaviour and reward seeking occur more frequently in both individuals who develop a drug addiction, or a gambling disorder.</p>
+<p>At the same time innovative new neuroimaging technologies have allowed scientists to peer inside the addicted brain.</p>
+<p>Scientists have found that all addictive substances boost the activity of the chemical messenger dopamine in a region of the brain known as the “reward system”. The reward system evolved to motivate behaviours that increase our chances of survival and passing on our genes.</p>
+<p>A friendly smile, a long cool drink of water on a hot thirsty day and, of course, sex, all cause the reward system to release a satisfying rush of dopamine. This release of dopamine improves our ability and increases our <em>desire</em> to seek out that activity again.</p>
+<p>Addictive substances hijack this system by flooding it with dopamine. This causes the brain to wire up an increasingly powerful motivational urge to seek out and consume that substance again.</p>
+<p>At the same time, it reduces connections to the prefrontal cortex, the part of the brain that helps people tame their impulses. Why resist something that is clearly so rewarding?</p>
+<p>The brain also reduces the sensitivity of brain cells that respond to the drug. This produces tolerance; so each hit becomes less satisfying that the last.</p>
+<p>The combined effect of all this? Just as cravings become increasingly intense, it becomes increasingly difficult to control them—and nearly impossible to satisfy them.</p>
+
+[IMAGE HERE]
+
+<div class = 'image'><img src = "./Images/APPS_fMRI.jpg" width = 100% /></div>
+<div class = 'image-caption'>fMRI studies have revealed how gambling and addictive drugs activate similar brain reward regions.</div>
+
+<p>Scientists have now measured people’s brain activity while they gamble on pokies-style games and found that the same brain areas stimulated by addictive drugs are highly active following a gambling win.</p>
+<p>But as Director of the Gambling Research Institute at the University of Nevada, Professor Raymond Beckett, explains <em>“It’s not just about the reward.”</em></p>
+<p><em>“It’s about delivering the reward in a way that maximises the activity of the dopamine system. One thing that’s particularly attractive to the dopamine system is uncertainty—which is the defining feature of gambling! We see in brain imaging studies that a subject will experience a greater dopamine response if they don’t know for sure when the next win is coming.”</em></p>
+<p>The evidence clearly suggests that pokies are can produce all the biological hallmarks of substance addiction, an addiction that sustains enormous private profits. Those revenues are larger here in Australia than anywhere else in the world. Given what we now know — it might be time to kick the habit.</p>
+
+[END]
