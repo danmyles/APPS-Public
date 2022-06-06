@@ -9,7 +9,7 @@ For instructions to reproduce the analysis, see the summary of the "Analysis" fo
 # Citation
 To refer to this work in an academic text please use the following publication: 
 
-Myles, D., O'Brien, K., Yücel, M., Carter, A (2022). Three Accounts of Electronic Gambling Machine Related Harm: Impacts on Community Views Towards Gambling Policy and Responsibility. Retrieved from [osf.io/b8a9f](osf.io/b8a9f)
+[Anonymised]
 
 # License
 <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by-nc/4.0/88x31.png" /></a><br />This work is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/">Creative Commons Attribution-NonCommercial 4.0 International License</a>.

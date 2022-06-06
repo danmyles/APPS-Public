@@ -1,7 +1,7 @@
 ---
 title: "Attitudes towards EGM Policy"
 subtitle: "Analysis Notes"
-author: "Dan Myles"
+author: "[Anonymised]"
 date: "`r Sys.Date()`"
 output:
   html_document:
@@ -1702,6 +1702,5 @@ remaining.ES.table |>
 ```{r}
 sessionInfo()
 ```
-
 
 # References
